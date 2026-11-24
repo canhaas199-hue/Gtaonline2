@@ -1,0 +1,3170 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Los Santos Online 3D — Netlify Edition</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ls-gold: #f5b82e;
+      --ls-teal: #14b8a6;
+      --ls-rose: #f43f5e;
+      --ls-panel: rgba(12, 16, 26, 0.82);
+      --ls-border: rgba(255, 255, 255, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #090d16;
+      color: #f8fafc;
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      touch-action: none;
+    }
+
+    .font-comic {
+      font-family: 'Bangers', Impact, cursive, sans-serif;
+      letter-spacing: 0.05em;
+    }
+
+    canvas#gameCanvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      z-index: 1;
+    }
+
+    .glass-card {
+      background: var(--ls-panel);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--ls-border);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+    }
+
+    .comic-panel {
+      background: linear-gradient(145deg, rgba(18, 24, 38, 0.94), rgba(10, 14, 24, 0.96));
+      border: 2px solid rgba(245, 184, 46, 0.55);
+      box-shadow: 6px 6px 0 rgba(245, 184, 46, 0.25), 0 24px 60px rgba(0, 0, 0, 0.7);
+    }
+
+    .btn-gold {
+      background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 55%, #d97706 100%);
+      color: #090d16;
+      font-weight: 800;
+      box-shadow: 0 6px 20px rgba(245, 158, 11, 0.38);
+      transition: transform 0.14s ease, filter 0.14s ease, box-shadow 0.14s ease;
+    }
+
+    .btn-gold:hover {
+      filter: brightness(1.06);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px rgba(245, 158, 11, 0.5);
+    }
+
+    .btn-gold:active {
+      transform: translateY(1px) scale(0.98);
+    }
+
+    .touch-btn {
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(8px);
+      border: 1.5px solid rgba(255, 255, 255, 0.22);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
+      transition: transform 0.1s ease, background-color 0.12s ease, border-color 0.12s ease;
+    }
+
+    .touch-btn:active, .touch-btn.active {
+      transform: scale(0.92);
+      background: rgba(245, 184, 46, 0.32);
+      border-color: #fbbf24;
+    }
+
+    .reticle-ring {
+      transition: transform 0.12s ease, border-color 0.12s ease, width 0.12s ease, height 0.12s ease;
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.75; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.04); }
+    }
+
+    .animate-glow {
+      animation: pulseGlow 2.2s infinite ease-in-out;
+    }
+
+    /* Custom subtle scrollbars inside modals */
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(245, 184, 46, 0.35);
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+  <!-- WebGL 3D Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Toast Container -->
+  <div id="toastContainer" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 pointer-events-none w-[92vw] max-w-md"></div>
+
+  <!-- ========================================================= -->
+  <!-- 1. COMIC LOADING SCREEN                                   -->
+  <!-- ========================================================= -->
+  <section id="loadingScreen" class="fixed inset-0 z-40 flex items-center justify-center p-4 bg-[#070b14] transition-opacity duration-500">
+    <div class="w-full max-w-4xl comic-panel rounded-2xl p-5 sm:p-8 relative overflow-hidden">
+      <div class="absolute -right-14 -top-14 w-56 h-56 rounded-full bg-amber-400/10 blur-2xl pointer-events-none"></div>
+      <div class="absolute -left-16 -bottom-16 w-64 h-64 rounded-full bg-teal-400/10 blur-2xl pointer-events-none"></div>
+
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div>
+          <span class="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wider uppercase bg-amber-400/15 text-amber-300 border border-amber-400/30 mb-2">
+            Netlify &amp; GitHub Pages Edition • 2400×2400 Open World
+          </span>
+          <h1 class="font-comic text-4xl sm:text-6xl text-amber-400 drop-shadow-[0_3px_0_rgba(0,0,0,0.9)] leading-none">
+            LOS SANTOS ONLINE 3D
+          </h1>
+        </div>
+        <div class="text-left sm:text-right">
+          <div class="text-xs uppercase tracking-widest text-slate-400">Ladefortschritt</div>
+          <div id="loadingPercent" class="text-2xl sm:text-3xl font-black text-white">0%</div>
+        </div>
+      </div>
+
+      <!-- Comic Panels Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="rounded-xl p-4 bg-slate-900/90 border-2 border-amber-400/35 relative">
+          <span class="font-comic text-xs px-2 py-0.5 rounded bg-amber-400 text-slate-950 inline-block mb-2">KAPITEL I</span>
+          <h3 class="font-bold text-white text-base mb-1">Großes San Andreas</h3>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Downtown-Hochhäuser, Maze Bank Tower, Vespucci-Strand, Vinewood Hills, Wüste, Alamo Sea, Mount Chiliad und LSIA-Flughafen.
+          </p>
+        </div>
+        <div class="rounded-xl p-4 bg-slate-900/90 border-2 border-teal-400/35 relative">
+          <span class="font-comic text-xs px-2 py-0.5 rounded bg-teal-400 text-slate-950 inline-block mb-2">KAPITEL II</span>
+          <h3 class="font-bold text-white text-base mb-1">Raubzüge &amp; Shops</h3>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Stürme den Maze Tower oder entführe den Golden Jet am Flughafen, rüste dich bei Ammu-Nation aus und tune dein Outfit &amp; Fahrzeug.
+          </p>
+        </div>
+        <div class="rounded-xl p-4 bg-slate-900/90 border-2 border-rose-400/35 relative">
+          <span class="font-comic text-xs px-2 py-0.5 rounded bg-rose-400 text-slate-950 inline-block mb-2">KAPITEL III</span>
+          <h3 class="font-bold text-white text-base mb-1">Überall Spielbar</h3>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Optimiert für iPhone, iPad, Android-Touch, Gamepad sowie Tastatur &amp; Maus — inklusive Admin-Konsole für Wetter &amp; Zeit.
+          </p>
+        </div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="w-full h-3.5 rounded-full bg-slate-800/90 border border-white/10 overflow-hidden mb-3">
+        <div id="loadingBarFill" class="h-full w-0 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-teal-400 transition-all duration-200"></div>
+      </div>
+      <div class="flex items-center justify-between text-xs text-slate-400">
+        <span id="loadingStatusText">Initialisiere WebGL-Engine &amp; Geländekarten...</span>
+        <span>60 FPS Adaptive Render</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 2. SERVER LOGIN & CHARACTER SELECTION SCREEN              -->
+  <!-- ========================================================= -->
+  <section id="authScreen" class="fixed inset-0 z-30 hidden items-center justify-center p-3 sm:p-6 bg-[#070b14]/88 backdrop-blur-md overflow-y-auto">
+    <div class="w-full max-w-5xl glass-card rounded-2xl p-5 sm:p-8 my-auto">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4 mb-6">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-widest text-amber-400">Social Club Online • Session</span>
+          <h2 class="font-comic text-3xl sm:text-5xl text-white mt-0.5">ANMELDUNG &amp; CHARAKTERWAHL</h2>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-slate-300 bg-white/5 px-3 py-2 rounded-xl border border-white/10">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Speicherstand: <strong id="savedAccountPreview" class="text-amber-300">Lokal aktiv</strong></span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Left Column: Account & Server -->
+        <div class="lg:col-span-5 space-y-4">
+          <div class="rounded-xl bg-slate-900/75 border border-white/10 p-4 space-y-3">
+            <h3 class="text-sm font-bold uppercase tracking-wider text-amber-300">1. Spieler-Account</h3>
+            <div>
+              <label for="playerNameInput" class="block text-xs text-slate-400 mb-1">Spielername / Tag</label>
+              <input id="playerNameInput" type="text" maxlength="18" value="Player_LS"
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/90 border border-white/15 text-sm text-white focus:outline-none focus:border-amber-400"
+                placeholder="Dein Name in Los Santos..." />
+            </div>
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div class="rounded-lg bg-white/5 p-2.5 border border-white/10">
+                <div class="text-[11px] text-slate-400">Gespeichertes Bargeld</div>
+                <div id="authCashPreview" class="text-sm font-extrabold text-emerald-400">25.000 €</div>
+              </div>
+              <div class="rounded-lg bg-white/5 p-2.5 border border-white/10">
+                <div class="text-[11px] text-slate-400">Bisherige Raubzüge</div>
+                <div id="authHeistsPreview" class="text-sm font-extrabold text-amber-300">0</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-xl bg-slate-900/75 border border-white/10 p-4 space-y-3">
+            <h3 class="text-sm font-bold uppercase tracking-wider text-teal-300">2. Server &amp; Lobby</h3>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="btnModePublic" type="button"
+                class="py-2.5 px-3 rounded-xl text-xs font-bold border border-amber-400 bg-amber-400/20 text-amber-200 transition">
+                Öffentlich
+              </button>
+              <button id="btnModePrivate" type="button"
+                class="py-2.5 px-3 rounded-xl text-xs font-bold border border-white/15 bg-slate-950/60 text-slate-300 hover:border-white/30 transition">
+                Privat (Code)
+              </button>
+            </div>
+            <div id="privateRoomBox" class="hidden space-y-2 pt-1">
+              <label for="roomCodeInput" class="block text-xs text-slate-400">Privater Lobby-Code</label>
+              <div class="flex gap-2">
+                <input id="roomCodeInput" type="text" maxlength="10" value="LS777"
+                  class="flex-1 px-3 py-2 rounded-xl bg-slate-950/90 border border-white/15 text-sm uppercase tracking-widest text-amber-300 focus:outline-none focus:border-amber-400" />
+                <button id="btnRandomCode" type="button"
+                  class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-white">
+                  Neu
+                </button>
+              </div>
+            </div>
+            <div class="text-xs text-slate-400 flex items-center justify-between pt-1">
+              <span>Region: EU-West (Netlify Edge)</span>
+              <span class="text-teal-300 font-semibold">6 Online-Spieler in Lobby</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Character Selection -->
+        <div class="lg:col-span-7 flex flex-col justify-between space-y-4">
+          <div>
+            <h3 class="text-sm font-bold uppercase tracking-wider text-amber-300 mb-3">3. Charakter wählen</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <!-- Franklin-style Character -->
+              <button id="charCardFranklin" type="button"
+                class="char-select-card text-left rounded-2xl p-4 bg-slate-900/85 border-2 border-amber-400 shadow-lg shadow-amber-500/10 transition flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                      FAHRER &amp; SCHÜTZE
+                    </span>
+                    <span class="text-xs font-bold text-emerald-400">Aktiv</span>
+                  </div>
+                  <!-- Stylized SVG Portrait -->
+                  <div class="w-full h-28 rounded-xl bg-gradient-to-br from-amber-500/25 via-slate-800 to-slate-950 border border-white/10 flex items-center justify-center mb-3">
+                    <svg viewBox="0 0 120 100" class="w-24 h-24">
+                      <circle cx="60" cy="36" r="18" fill="#6b442a" />
+                      <path d="M43 32 Q60 16 77 32 Q72 22 60 22 Q48 22 43 32 Z" fill="#18181b" />
+                      <circle cx="54" cy="36" r="2.2" fill="#090d16" />
+                      <circle cx="66" cy="36" r="2.2" fill="#090d16" />
+                      <path d="M54 44 Q60 48 66 44" stroke="#2c190f" stroke-width="2.2" fill="none" stroke-linecap="round" />
+                      <path d="M30 92 Q36 58 60 58 Q84 58 90 92 Z" fill="#f59e0b" />
+                      <path d="M46 58 L60 76 L74 58" fill="#1e293b" />
+                    </svg>
+                  </div>
+                  <div class="font-extrabold text-lg text-white">Marcus „V-Drive“</div>
+                  <p class="text-xs text-slate-300 mt-1">
+                    Franklin-inspirierter Straßenprofi mit starkem Fokus auf Muscle-Cars, schnelles Handling und Präzisionsfeuer.
+                  </p>
+                </div>
+              </button>
+
+              <!-- Lucia-style Character -->
+              <button id="charCardLucia" type="button"
+                class="char-select-card text-left rounded-2xl p-4 bg-slate-900/75 border-2 border-white/10 hover:border-white/30 transition flex flex-col justify-between">
+                <div>
+                  <div class="flex items-center justify-between mb-3">
+                    <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-400/40">
+                      HEIST-SPEZIALISTIN
+                    </span>
+                    <span class="text-xs font-semibold text-slate-400">Wählbar</span>
+                  </div>
+                  <!-- Stylized SVG Portrait -->
+                  <div class="w-full h-28 rounded-xl bg-gradient-to-br from-rose-500/25 via-slate-800 to-slate-950 border border-white/10 flex items-center justify-center mb-3">
+                    <svg viewBox="0 0 120 100" class="w-24 h-24">
+                      <path d="M38 42 Q40 16 60 16 Q80 16 82 42 L86 68 L34 68 Z" fill="#271712" />
+                      <circle cx="60" cy="38" r="16" fill="#d69e76" />
+                      <circle cx="54" cy="37" r="2.2" fill="#090d16" />
+                      <circle cx="66" cy="37" r="2.2" fill="#090d16" />
+                      <path d="M55 45 Q60 48 65 45" stroke="#be123c" stroke-width="2.2" fill="none" stroke-linecap="round" />
+                      <path d="M32 92 Q38 59 60 59 Q82 59 88 92 Z" fill="#e11d48" />
+                      <path d="M48 59 L60 74 L72 59" fill="#0f172a" />
+                    </svg>
+                  </div>
+                  <div class="font-extrabold text-lg text-white">Lucia „Viper“</div>
+                  <p class="text-xs text-slate-300 mt-1">
+                    Flinke Taktikerin für Hochhaus-Raubzüge, Jet-Entführungen und enge Feuergefechte in der Innenstadt.
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
+            <button id="btnResetSaveAuth" type="button"
+              class="px-4 py-3 rounded-xl text-xs font-bold text-rose-300 bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition">
+              Spielstand zurücksetzen
+            </button>
+            <button id="btnEnterWorld" type="button"
+              class="btn-gold px-7 py-3.5 rounded-xl text-sm sm:text-base tracking-wide flex items-center justify-center gap-2">
+              <span>IN LOS SANTOS EINSTEIGEN</span>
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- 3. IN-GAME HUD (TOP BAR, MINIMAP, MISSION & TARGET)       -->
+  <!-- ========================================================= -->
+  <div id="hudLayer" class="fixed inset-0 z-10 pointer-events-none hidden">
+    <!-- Top Left: Cash, Wanted Stars, Health, Armor, District -->
+    <div class="fixed top-3 left-3 flex flex-col gap-2 max-w-[78vw] sm:max-w-xs">
+      <div class="glass-card rounded-xl px-3.5 py-2.5 flex items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span id="hudPlayerName" class="text-xs font-extrabold text-amber-300">Player_LS</span>
+            <span id="hudLobbyTag" class="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-slate-300">ÖFFENTLICH</span>
+          </div>
+          <div id="hudCash" class="text-lg sm:text-xl font-black text-emerald-400 leading-tight mt-0.5">25.000 €</div>
+        </div>
+        <div class="text-right">
+          <div id="hudDistrict" class="text-xs font-bold text-white">Downtown LS</div>
+          <div id="hudWantedStars" class="text-sm tracking-tight text-amber-400 mt-0.5">☆☆☆☆☆</div>
+        </div>
+      </div>
+
+      <!-- Health & Armor Bars -->
+      <div class="glass-card rounded-xl px-3 py-2 space-y-1.5">
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] font-bold uppercase text-rose-300 w-10">Leben</span>
+          <div class="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div id="hudHealthBar" class="h-full bg-gradient-to-r from-rose-500 to-emerald-400 transition-all duration-150" style="width: 100%"></div>
+          </div>
+          <span id="hudHealthText" class="text-[11px] font-bold text-white w-8 text-right">100</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] font-bold uppercase text-sky-300 w-10">Panzer</span>
+          <div class="flex-1 h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div id="hudArmorBar" class="h-full bg-sky-400 transition-all duration-150" style="width: 0%"></div>
+          </div>
+          <span id="hudArmorText" class="text-[11px] font-bold text-sky-200 w-8 text-right">0</span>
+        </div>
+      </div>
+
+      <!-- Active Mission Banner -->
+      <div id="hudMissionBox" class="hidden glass-card rounded-xl px-3.5 py-2.5 border-l-4 border-l-amber-400">
+        <div class="flex items-center justify-between gap-2">
+          <span id="hudMissionTitle" class="text-xs font-extrabold text-amber-300 uppercase">Raubzug aktiv</span>
+          <span id="hudMissionReward" class="text-xs font-bold text-emerald-400">+150.000 €</span>
+        </div>
+        <p id="hudMissionStep" class="text-xs text-slate-200 mt-0.5 leading-snug"></p>
+      </div>
+    </div>
+
+    <!-- Top Right: Quick Action Buttons & Weapon/Ammo -->
+    <div class="fixed top-3 right-3 flex flex-col items-end gap-2 pointer-events-auto">
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <button id="btnOpenHeists" type="button"
+          class="glass-card px-2.5 py-2 rounded-xl text-xs font-bold text-amber-300 hover:bg-white/10 transition">
+          Raubzüge
+        </button>
+        <button id="btnOpenAdmin" type="button"
+          class="glass-card px-2.5 py-2 rounded-xl text-xs font-bold text-teal-300 hover:bg-white/10 transition">
+          Admin
+        </button>
+        <button id="btnOpenSettings" type="button"
+          class="glass-card px-2.5 py-2 rounded-xl text-xs font-bold text-white hover:bg-white/10 transition">
+          Einstellungen
+        </button>
+      </div>
+
+      <!-- Weapon & Ammo Box -->
+      <div class="glass-card rounded-xl px-3.5 py-2 text-right">
+        <div class="flex items-center justify-end gap-2">
+          <span id="hudWeaponName" class="text-xs font-extrabold text-white">Pistole</span>
+          <span id="hudAmmoText" class="text-sm font-black text-amber-300">17 / ∞</span>
+        </div>
+        <div id="hudControlHint" class="text-[10px] text-slate-400 mt-0.5">
+          WASD Bewegen • Maus Zielen/Schuss • TAB Waffenrad • E Interaktion
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Aim Reticle -->
+    <div id="aimReticle" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
+      <div id="reticleOuter" class="reticle-ring w-7 h-7 rounded-full border border-white/55 flex items-center justify-center">
+        <div class="w-1 h-1 rounded-full bg-amber-400"></div>
+      </div>
+    </div>
+
+    <!-- Context Prompt (Shop / Heist / Vehicle / Jet) -->
+    <div id="contextPrompt" class="hidden fixed bottom-36 sm:bottom-24 left-1/2 -translate-x-1/2 pointer-events-auto">
+      <button id="btnContextInteract" type="button"
+        class="btn-gold px-5 py-2.5 rounded-full text-xs sm:text-sm flex items-center gap-2 shadow-2xl">
+        <span class="px-2 py-0.5 rounded bg-slate-950/85 text-amber-300 font-black">E</span>
+        <span id="contextPromptLabel">Interagieren</span>
+      </button>
+    </div>
+
+    <!-- Bottom Left: Minimap Radar Canvas -->
+    <div class="fixed bottom-3 left-3 flex flex-col items-start gap-1.5">
+      <div class="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full overflow-hidden border-2 border-amber-400/60 shadow-2xl bg-slate-950/90">
+        <canvas id="minimapCanvas" width="160" height="160" class="w-full h-full block"></canvas>
+        <div class="pointer-events-none absolute inset-0 rounded-full ring-1 ring-inset ring-white/15"></div>
+      </div>
+      <div class="glass-card px-2.5 py-1 rounded-lg text-[10px] text-slate-300">
+        <span class="text-amber-300 font-bold">●</span> Shop &nbsp;
+        <span class="text-rose-400 font-bold">▲</span> Raub &nbsp;
+        <span class="text-sky-300 font-bold">✈</span> Jet
+      </div>
+    </div>
+
+    <!-- Touch Controls (Auto-shown on touch/mobile or enabled in Settings) -->
+    <div id="touchControlsLayer" class="fixed inset-0 pointer-events-none hidden">
+      <!-- Virtual Left Joystick Zone -->
+      <div id="joystickZone" class="fixed bottom-36 left-5 w-28 h-28 rounded-full bg-slate-900/55 border border-white/20 backdrop-blur-sm pointer-events-auto flex items-center justify-center">
+        <div id="joystickKnob" class="w-11 h-11 rounded-full bg-amber-400/90 shadow-lg border-2 border-white/70 transform transition-transform duration-75"></div>
+      </div>
+
+      <!-- Non-overlapping Edge Action Buttons (Right Side) -->
+      <div class="fixed bottom-36 right-4 flex flex-col gap-2.5 pointer-events-auto">
+        <button id="touchFireBtn" type="button" class="touch-btn w-14 h-14 rounded-full text-xs font-black text-rose-300 flex items-center justify-center">
+          FEUER
+        </button>
+        <button id="touchAimBtn" type="button" class="touch-btn w-14 h-14 rounded-full text-xs font-black text-amber-300 flex items-center justify-center">
+          ZIEL
+        </button>
+      </div>
+
+      <div class="fixed bottom-6 right-4 flex items-center gap-2 pointer-events-auto">
+        <button id="touchReloadBtn" type="button" class="touch-btn px-3 py-2.5 rounded-xl text-[11px] font-bold text-slate-200">
+          Laden
+        </button>
+        <button id="touchWheelBtn" type="button" class="touch-btn px-3 py-2.5 rounded-xl text-[11px] font-bold text-amber-300">
+          Waffen
+        </button>
+        <button id="touchActionBtn" type="button" class="touch-btn px-3.5 py-2.5 rounded-xl text-[11px] font-extrabold text-emerald-300">
+          Aktion
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 4. WEAPON WHEEL MODAL                                     -->
+  <!-- ========================================================= -->
+  <div id="weaponWheelModal" class="fixed inset-0 z-40 hidden items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-md rounded-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <span class="text-[11px] uppercase tracking-wider text-amber-400 font-bold">Waffenauswahl</span>
+          <h3 class="font-comic text-3xl text-white">WAFFENRAD</h3>
+        </div>
+        <button id="btnCloseWeaponWheel" type="button" class="px-3 py-1.5 rounded-lg bg-white/10 text-xs font-bold hover:bg-white/20">
+          Schließen
+        </button>
+      </div>
+      <div id="weaponWheelList" class="grid grid-cols-1 gap-2.5"></div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 5. SHOP MODAL (AMMU-NATION & LS CUSTOMS / OUTFITS)      -->
+  <!-- ========================================================= -->
+  <div id="shopModal" class="fixed inset-0 z-40 hidden items-center justify-center p-3 sm:p-6 bg-slate-950/75 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-2xl rounded-2xl p-5 sm:p-6 max-h-[88vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+        <div>
+          <span id="shopBadge" class="text-[11px] font-bold uppercase tracking-wider text-amber-400">Lokaler Shop</span>
+          <h3 id="shopTitle" class="font-comic text-3xl sm:text-4xl text-white">AMMU-NATION</h3>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="text-right">
+            <div class="text-[10px] text-slate-400 uppercase">Dein Guthaben</div>
+            <div id="shopCashDisplay" class="text-base font-black text-emerald-400">25.000 €</div>
+          </div>
+          <button id="btnCloseShop" type="button" class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">
+            Schließen
+          </button>
+        </div>
+      </div>
+
+      <div id="shopItemsContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-3 overflow-y-auto custom-scroll pr-1"></div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 6. HEISTS MODAL (MAZE TOWER BANK & GOLDEN JET)            -->
+  <!-- ========================================================= -->
+  <div id="heistsModal" class="fixed inset-0 z-40 hidden items-center justify-center p-3 sm:p-6 bg-slate-950/75 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-2xl rounded-2xl p-5 sm:p-6 max-h-[88vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-rose-400">Hochrisiko-Aufträge</span>
+          <h3 class="font-comic text-3xl sm:text-4xl text-white">RAUBZÜGE IN LOS SANTOS</h3>
+        </div>
+        <button id="btnCloseHeists" type="button" class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">
+          Schließen
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 overflow-y-auto custom-scroll pr-1">
+        <!-- Maze Tower Heist -->
+        <div class="rounded-2xl bg-slate-900/85 border border-amber-400/35 p-4 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-400/20 text-amber-300">HOCHHAUS-TRESOR</span>
+              <span class="text-sm font-black text-emerald-400">+180.000 €</span>
+            </div>
+            <h4 class="font-extrabold text-lg text-white">Maze Tower Bank-Raubzug</h4>
+            <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+              Begib dich zum Eingang des Maze Bank Towers in Downtown, knacke die Tresor-Sicherung im Inneren und bring die Beute zum Fluchtpunkt am Strand.
+            </p>
+          </div>
+          <button id="btnStartMazeHeist" type="button" class="btn-gold w-full py-2.5 rounded-xl text-xs sm:text-sm">
+            Maze Tower Raubzug starten
+          </button>
+        </div>
+
+        <!-- Golden Jet Heist -->
+        <div class="rounded-2xl bg-slate-900/85 border border-teal-400/35 p-4 flex flex-col justify-between space-y-4">
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-teal-400/20 text-teal-300">FLUGHAFEN-ENTFÜHRUNG</span>
+              <span class="text-sm font-black text-emerald-400">+240.000 €</span>
+            </div>
+            <h4 class="font-extrabold text-lg text-white">Golden Jet Entführung</h4>
+            <p class="text-xs text-slate-300 mt-1.5 leading-relaxed">
+              Fahre oder laufe zum internationalen Flughafen (LSIA), steige in den glänzenden Golden Jet auf der Startbahn und fliege über San Andreas.
+            </p>
+          </div>
+          <button id="btnStartJetHeist" type="button" class="btn-gold w-full py-2.5 rounded-xl text-xs sm:text-sm">
+            Golden Jet Raubzug starten
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 7. ADMIN PANEL MODAL                                      -->
+  <!-- ========================================================= -->
+  <div id="adminModal" class="fixed inset-0 z-40 hidden items-center justify-center p-3 sm:p-6 bg-slate-950/75 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-2xl rounded-2xl p-5 sm:p-6 max-h-[88vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3 mb-4">
+        <div>
+          <span class="text-[11px] font-bold uppercase tracking-wider text-teal-300">Welt- &amp; Spielersteuerung</span>
+          <h3 class="font-comic text-3xl sm:text-4xl text-white">ADMIN-KONTROLLE</h3>
+        </div>
+        <button id="btnCloseAdmin" type="button" class="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold">
+          Schließen
+        </button>
+      </div>
+
+      <div class="space-y-4 overflow-y-auto custom-scroll pr-1 text-xs">
+        <!-- Time of Day -->
+        <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3.5">
+          <div class="font-bold uppercase tracking-wider text-amber-300 mb-2">Tageszeit</div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button data-admin-time="morning" type="button" class="admin-time-btn py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 font-bold">Morgen</button>
+            <button data-admin-time="noon" type="button" class="admin-time-btn py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 font-bold">Mittag</button>
+            <button data-admin-time="golden" type="button" class="admin-time-btn py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 font-bold">Goldene Stunde</button>
+            <button data-admin-time="night" type="button" class="admin-time-btn py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 font-bold">Nacht</button>
+          </div>
+        </div>
+
+        <!-- Weather -->
+        <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3.5">
+          <div class="font-bold uppercase tracking-wider text-sky-300 mb-2">Wetter</div>
+          <div class="grid grid-cols-3 gap-2">
+            <button data-admin-weather="clear" type="button" class="admin-weather-btn py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 font-bold">Klar</button>
+            <button data-admin-weather="rain" type="button" class="admin-weather-btn py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 font-bold">Regen</button>
+            <button data-admin-weather="storm" type="button" class="admin-weather-btn py-2 px-3 rounded-lg bg-white/10 hover:bg-white/20 font-bold">Gewitter &amp; Blitz</button>
+          </div>
+        </div>
+
+        <!-- Toggles & Money -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <button id="btnAdminFly" type="button" class="py-3 px-3 rounded-xl bg-slate-900/85 border border-white/15 hover:border-teal-400 font-bold text-left">
+            Flugmodus: <span id="adminFlyLabel" class="text-rose-400">AUS</span>
+          </button>
+          <button id="btnAdminGod" type="button" class="py-3 px-3 rounded-xl bg-slate-900/85 border border-white/15 hover:border-amber-400 font-bold text-left">
+            Unverwundbar: <span id="adminGodLabel" class="text-rose-400">AUS</span>
+          </button>
+          <button id="btnAdminMoney" type="button" class="py-3 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/40 hover:bg-emerald-500/25 font-extrabold text-emerald-300 text-center">
+            +100.000 € Bargeld
+          </button>
+        </div>
+
+        <!-- Summon, Paint & Wanted -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <button id="btnAdminSummonCar" type="button" class="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 font-bold">
+            Sportwagen rufen
+          </button>
+          <button id="btnAdminPaintCar" type="button" class="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 font-bold">
+            Fahrzeug neu lackieren
+          </button>
+          <button id="btnAdminWantedCycle" type="button" class="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 font-bold">
+            Fahndung (+1 / Reset bei 5)
+          </button>
+        </div>
+
+        <!-- Fast Travel / Reset -->
+        <div class="rounded-xl bg-slate-900/80 border border-white/10 p-3.5">
+          <div class="font-bold uppercase tracking-wider text-purple-300 mb-2">Schnellreise in Bezirke</div>
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <button data-tp="downtown" type="button" class="tp-btn py-2 px-2 rounded-lg bg-white/10 hover:bg-white/20 font-semibold">Downtown</button>
+            <button data-tp="beach" type="button" class="tp-btn py-2 px-2 rounded-lg bg-white/10 hover:bg-white/20 font-semibold">Vespucci</button>
+            <button data-tp="vinewood" type="button" class="tp-btn py-2 px-2 rounded-lg bg-white/10 hover:bg-white/20 font-semibold">Vinewood</button>
+            <button data-tp="chiliad" type="button" class="tp-btn py-2 px-2 rounded-lg bg-white/10 hover:bg-white/20 font-semibold">Chiliad / See</button>
+            <button data-tp="airport" type="button" class="tp-btn py-2 px-2 rounded-lg bg-white/10 hover:bg-white/20 font-semibold">LSIA Jet</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 8. SETTINGS MODAL                                         -->
+  <!-- ========================================================= -->
+  <div id="settingsModal" class="fixed inset-0 z-40 hidden items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm">
+    <div class="glass-card w-full max-w-md rounded-2xl p-5 space-y-4 text-xs">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <div>
+          <span class="text-[11px] uppercase tracking-wider text-amber-400 font-bold">Steuerung &amp; Grafik</span>
+          <h3 class="font-comic text-3xl text-white">EINSTELLUNGEN</h3>
+        </div>
+        <button id="btnCloseSettings" type="button" class="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 font-bold">
+          Schließen
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <div class="flex justify-between text-slate-300 mb-1">
+            <span>Kamera-Empfindlichkeit</span>
+            <span id="sensValueLabel" class="font-bold text-amber-300">1.0x</span>
+          </div>
+          <input id="sensRangeInput" type="range" min="0.4" max="2.2" step="0.1" value="1.0" class="w-full accent-amber-400" />
+        </div>
+
+        <div class="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-900/75 border border-white/10">
+          <div>
+            <div class="font-bold text-white">Touch-Steuerung erzwingen</div>
+            <div class="text-[11px] text-slate-400">Blendet Joystick &amp; Buttons auch auf Desktop ein</div>
+          </div>
+          <input id="forceTouchCheckbox" type="checkbox" class="w-4 h-4 accent-amber-400" />
+        </div>
+
+        <div class="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-900/75 border border-white/10">
+          <div>
+            <div class="font-bold text-white">Soundeffekte (Web Audio)</div>
+            <div class="text-[11px] text-slate-400">Schüsse, Käufe, Donner &amp; Raubzug-Signale</div>
+          </div>
+          <input id="soundCheckbox" type="checkbox" checked class="w-4 h-4 accent-amber-400" />
+        </div>
+      </div>
+
+      <div class="pt-2 flex justify-between gap-2">
+        <button id="btnBackToLobby" type="button" class="px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 font-bold text-slate-200">
+          Lobby / Charakter
+        </button>
+        <button id="btnSaveSettingsClose" type="button" class="btn-gold px-5 py-2.5 rounded-xl font-extrabold">
+          Speichern
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- 9. CORE GAME ENGINE (THREE.JS + WORLD + SYSTEMS + INPUT)  -->
+  <!-- ========================================================= -->
+  <script>
+    (function () {
+      'use strict';
+
+      // -----------------------------------------------------------
+      // 1. CONSTANTS & WORLD CONFIGURATION (2400 x 2400 Units)
+      // -----------------------------------------------------------
+      const WORLD_SIZE = 2400;
+      const HALF_WORLD = WORLD_SIZE / 2; // -1200 to +1200
+      const STORAGE_KEY = 'ls_online_3d_netlify_v1';
+
+      // Key landmarks & coordinates in world space
+      const LANDMARKS = {
+        downtown: { x: 180, z: 220, name: 'Downtown Los Santos' },
+        mazeTower: { x: 180, z: 160, name: 'Maze Bank Tower' },
+        beach: { x: -760, z: 540, name: 'Vespucci & Del Perro Strand' },
+        pier: { x: -960, z: 620, name: 'Del Perro Pier' },
+        vinewood: { x: -120, z: -560, name: 'Vinewood Hills' },
+        desert: { x: 640, z: -520, name: 'Grand Senora Wüste' },
+        alamoSea: { x: 660, z: -840, name: 'Alamo Sea' },
+        chiliad: { x: -620, z: -920, name: 'Mount Chiliad Gipfel' },
+        airport: { x: -260, z: 890, name: 'LSIA Flughafen' },
+        goldenJetSpawn: { x: -240, z: 930, name: 'Golden Jet Startbahn' },
+        gunShop: { x: 60, z: 360, name: 'Ammu-Nation Waffenladen' },
+        customsShop: { x: -420, z: 340, name: 'LS Customs & Outfit-Shop' }
+      };
+
+      const WEAPONS = [
+        {
+          id: 'pistol',
+          name: 'Pistole',
+          damage: 28,
+          fireRate: 0.24,
+          spread: 0.015,
+          magSize: 17,
+          color: 0xfbbf24,
+          pellets: 1,
+          price: 0
+        },
+        {
+          id: 'smg',
+          name: 'MP5 / Maschinenpistole',
+          damage: 19,
+          fireRate: 0.1,
+          spread: 0.032,
+          magSize: 30,
+          color: 0x38bdf8,
+          pellets: 1,
+          price: 12000
+        },
+        {
+          id: 'rifle',
+          name: 'Sturmgewehr MK2',
+          damage: 34,
+          fireRate: 0.13,
+          spread: 0.022,
+          magSize: 30,
+          color: 0xf97316,
+          pellets: 1,
+          price: 28000
+        },
+        {
+          id: 'shotgun',
+          name: 'Schrotflinte',
+          damage: 22,
+          fireRate: 0.65,
+          spread: 0.085,
+          magSize: 8,
+          color: 0xf43f5e,
+          pellets: 6,
+          price: 22000
+        }
+      ];
+
+      const GUN_SHOP_ITEMS = [
+        { id: 'buy_smg', title: 'MP5 Maschinenpistole', desc: 'Schnelle Feuerrate für Nah- und Mitteldistanz.', price: 12000, type: 'weapon', weaponId: 'smg' },
+        { id: 'buy_rifle', title: 'Sturmgewehr MK2', desc: 'Hoher Schaden und präzise Schussfolge.', price: 28000, type: 'weapon', weaponId: 'rifle' },
+        { id: 'buy_shotgun', title: 'Schrotflinte', desc: '6 Schrotkugeln pro Schuss auf kurze Distanz.', price: 22000, type: 'weapon', weaponId: 'shotgun' },
+        { id: 'buy_armor', title: 'Schwere Körperpanzerung', desc: 'Füllt deine Panzerung sofort auf 100 auf.', price: 4500, type: 'armor' },
+        { id: 'buy_medkit', title: 'Erste-Hilfe-Paket', desc: 'Stellt 100 Lebenspunkte vollständig wieder her.', price: 2500, type: 'heal' }
+      ];
+
+      const CUSTOMS_SHOP_ITEMS = [
+        { id: 'outfit_gold', title: 'Outfit: Goldener Boss', desc: 'Edler Gold-Akzent-Look für deinen Charakter.', price: 6000, type: 'outfit', accent: 0xf5b82e, outfitName: 'Goldener Boss' },
+        { id: 'outfit_stealth', title: 'Outfit: Shadow Ops', desc: 'Dunkles Taktik-Outfit mit Cyan-Details.', price: 8500, type: 'outfit', accent: 0x06b6d4, outfitName: 'Shadow Ops' },
+        { id: 'outfit_crimson', title: 'Outfit: Crimson Cartel', desc: 'Auffälliger Rot-Schwarz-Stil für High-Rollers.', price: 7500, type: 'outfit', accent: 0xe11d48, outfitName: 'Crimson Cartel' },
+        { id: 'paint_crimson', title: 'Fahrzeuglack: Race Rot', desc: 'Glänzende Sportwagen-Lackierung in Rot.', price: 4000, type: 'carColor', color: 0xef4444, colorName: 'Race Rot' },
+        { id: 'paint_gold', title: 'Fahrzeuglack: LS Gold', desc: 'Exklusive Gold-Metallic-Lackierung.', price: 7000, type: 'carColor', color: 0xf59e0b, colorName: 'LS Gold' },
+        { id: 'paint_cobalt', title: 'Fahrzeuglack: Cobalt Blau', desc: 'Tiefer Metallic-Blauton für dein Fahrzeug.', price: 4000, type: 'carColor', color: 0x2563eb, colorName: 'Cobalt Blau' }
+      ];
+
+      // -----------------------------------------------------------
+      // 2. AUDIO SYNTHESIZER (NO EXTERNAL ASSETS NEEDED)
+      // -----------------------------------------------------------
+      class SoundFX {
+        constructor() {
+          this.ctx = null;
+          this.enabled = true;
+        }
+        ensureContext() {
+          if (!this.enabled) return null;
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) {
+              this.ctx = new AudioCtx();
+            }
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+          }
+          return this.ctx;
+        }
+        playShot(weaponId) {
+          const ctx = this.ensureContext();
+          if (!ctx) return;
+          const now = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = weaponId === 'shotgun' ? 'sawtooth' : 'square';
+          const startFreq = weaponId === 'shotgun' ? 190 : weaponId === 'rifle' ? 270 : 340;
+          osc.frequency.setValueAtTime(startFreq, now);
+          osc.frequency.exponentialRampToValueAtTime(42, now + (weaponId === 'shotgun' ? 0.19 : 0.1));
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + (weaponId === 'shotgun' ? 0.2 : 0.11));
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.21);
+        }
+        playCash() {
+          const ctx = this.ensureContext();
+          if (!ctx) return;
+          const now = ctx.currentTime;
+          [880, 1174.66].forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+            gain.gain.setValueAtTime(0.11, now + idx * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.22);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + idx * 0.08);
+            osc.stop(now + idx * 0.08 + 0.24);
+          });
+        }
+        playThunder() {
+          const ctx = this.ensureContext();
+          if (!ctx) return;
+          const now = ctx.currentTime;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(85, now);
+          osc.frequency.exponentialRampToValueAtTime(26, now + 0.65);
+          gain.gain.setValueAtTime(0.16, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.72);
+        }
+      }
+
+      const sfx = new SoundFX();
+
+      // -----------------------------------------------------------
+      // 3. STATE MANAGEMENT & LOCAL STORAGE PERSISTENCE
+      // -----------------------------------------------------------
+      const defaultSaveData = () => ({
+        playerName: 'Player_LS',
+        characterId: 'franklin',
+        lobbyMode: 'public',
+        roomCode: 'LS777',
+        cash: 25000,
+        heistsCompleted: 0,
+        ownedWeapons: ['pistol'],
+        outfitName: 'Standard',
+        outfitAccent: null,
+        carColor: 0xef4444,
+        carColorName: 'Race Rot',
+        settings: {
+          sensitivity: 1.0,
+          forceTouch: false,
+          sound: true
+        }
+      });
+
+      function loadSaveData() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return defaultSaveData();
+          const parsed = JSON.parse(raw);
+          return {
+            ...defaultSaveData(),
+            ...parsed,
+            ownedWeapons: Array.isArray(parsed.ownedWeapons) && parsed.ownedWeapons.length > 0 ? parsed.ownedWeapons : ['pistol'],
+            settings: {
+              ...defaultSaveData().settings,
+              ...(parsed.settings || {})
+            }
+          };
+        } catch (err) {
+          return defaultSaveData();
+        }
+      }
+
+      let saveData = loadSaveData();
+      sfx.enabled = saveData.settings.sound;
+
+      function persistSaveData() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
+          updateAuthPreviewUI();
+          updateHudUI();
+        } catch (err) {
+          // Ignore storage quota issues
+        }
+      }
+
+      const gameState = {
+        screen: 'loading', // loading | auth | playing
+        health: 100,
+        armor: 0,
+        wantedLevel: 0,
+        wantedDecayTimer: 0,
+        currentWeaponIdx: 0,
+        ammoInMag: 17,
+        reloading: false,
+        reloadTimer: 0,
+        fireCooldown: 0,
+        isAiming: false,
+        isFiring: false,
+        inVehicle: false,
+        inJet: false,
+        flyMode: false,
+        godMode: false,
+        timeOfDay: 'noon', // morning | noon | golden | night
+        weather: 'clear', // clear | rain | storm
+        lightningTimer: 3.5,
+        lightningFlash: 0,
+        mission: null, // { type: 'maze' | 'jet', step: 1, reward: number }
+        yaw: 0,
+        pitch: 0.22,
+        camDist: 8.5,
+        isTouchDevice: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+      };
+
+      // -----------------------------------------------------------
+      // 4. UI TOAST & MODAL HELPERS
+      // -----------------------------------------------------------
+      function showToast(message, tone = 'info') {
+        const container = document.getElementById('toastContainer');
+        if (!container) return;
+        const el = document.createElement('div');
+        const tones = {
+          info: 'border-amber-400/50 text-white bg-slate-900/95',
+          success: 'border-emerald-400/60 text-emerald-200 bg-slate-900/95',
+          warn: 'border-rose-400/60 text-rose-200 bg-slate-900/95'
+        };
+        el.className = `px-4 py-2.5 rounded-xl border text-xs sm:text-sm font-semibold shadow-2xl transition-all duration-300 ${tones[tone] || tones.info}`;
+        el.textContent = message;
+        container.appendChild(el);
+        if (container.children.length > 3) {
+          container.removeChild(container.firstChild);
+        }
+        setTimeout(() => {
+          el.style.opacity = '0';
+          el.style.transform = 'translateY(-8px)';
+          setTimeout(() => el.remove(), 300);
+        }, 2800);
+      }
+
+      function openModal(id) {
+        const modal = document.getElementById(id);
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        gameState.isFiring = false;
+        if (document.pointerLockElement) {
+          try { document.exitPointerLock(); } catch (e) {}
+        }
+      }
+
+      function closeModal(id) {
+        const modal = document.getElementById(id);
+        if (!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      }
+
+      // -----------------------------------------------------------
+      // 5. THREE.JS SCENE, TERRAIN & EXPANDED SAN ANDREAS WORLD
+      // -----------------------------------------------------------
+      const canvas = document.getElementById('gameCanvas');
+      const renderer = new THREE.WebGLRenderer({
+        canvas,
+        antialias: true,
+        powerPreference: 'high-performance'
+      });
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      function applyAdaptiveDPR() {
+        const maxDpr = gameState.isTouchDevice ? 1.5 : 1.75;
+        const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
+        renderer.setPixelRatio(dpr);
+        renderer.setSize(window.innerWidth, window.innerHeight, false);
+      }
+      applyAdaptiveDPR();
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x6ec6ff);
+      scene.fog = new THREE.FogExp2(0x8ecae6, 0.00058);
+
+      const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.4, 2200);
+
+      // Lighting rig
+      const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x3f4e3a, 0.85);
+      scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xfffbeb, 1.25);
+      dirLight.position.set(260, 420, 220);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 1024;
+      dirLight.shadow.mapSize.height = 1024;
+      dirLight.shadow.camera.near = 50;
+      dirLight.shadow.camera.far = 1100;
+      const shadowBound = 240;
+      dirLight.shadow.camera.left = -shadowBound;
+      dirLight.shadow.camera.right = shadowBound;
+      dirLight.shadow.camera.top = shadowBound;
+      dirLight.shadow.camera.bottom = -shadowBound;
+      scene.add(dirLight);
+      scene.add(dirLight.target);
+
+      const lightningLight = new THREE.PointLight(0xe0f2fe, 0, 1400);
+      lightningLight.position.set(0, 500, 0);
+      scene.add(lightningLight);
+
+      // Terrain elevation helper (smooth hills, Vinewood ridge, desert dunes, Mount Chiliad)
+      function getTerrainHeight(x, z) {
+        // Beach & ocean coastal drop-off on far west (-X < -860) and south (+Z > 1060)
+        if (x < -940) {
+          const t = Math.min(1, (-940 - x) / 260);
+          return -t * 14;
+        }
+
+        let h = 0;
+
+        // Mount Chiliad peak around (-620, -920)
+        const dxChiliad = x - LANDMARKS.chiliad.x;
+        const dzChiliad = z - LANDMARKS.chiliad.z;
+        const distChiliad = Math.hypot(dxChiliad, dzChiliad);
+        if (distChiliad < 520) {
+          const norm = 1 - distChiliad / 520;
+          h += Math.pow(norm, 1.65) * 145;
+          h += Math.sin(x * 0.04) * Math.cos(z * 0.04) * norm * 12;
+        }
+
+        // Vinewood Hills ridge around (-120, -560)
+        const dxVine = x - LANDMARKS.vinewood.x;
+        const dzVine = z - LANDMARKS.vinewood.z;
+        const distVine = Math.hypot(dxVine, dzVine);
+        if (distVine < 380) {
+          const norm = 1 - distVine / 380;
+          h += Math.pow(norm, 1.5) * 42;
+        }
+
+        // Alamo Sea basin around (660, -840)
+        const dxSea = x - LANDMARKS.alamoSea.x;
+        const dzSea = z - LANDMARKS.alamoSea.z;
+        const distSea = Math.hypot(dxSea, dzSea);
+        if (distSea < 230) {
+          const norm = 1 - distSea / 230;
+          h -= norm * 8.5;
+        }
+
+        // Grand Senora Desert gentle dunes around (640, -520)
+        const dxDesert = x - LANDMARKS.desert.x;
+        const dzDesert = z - LANDMARKS.desert.z;
+        const distDesert = Math.hypot(dxDesert, dzDesert);
+        if (distDesert < 460) {
+          const norm = 1 - distDesert / 460;
+          h += Math.sin(x * 0.025) * Math.cos(z * 0.025) * 9.5 * norm + norm * 11;
+        }
+
+        // Flatten urban Downtown, Beach promenade, and LSIA Airport runway
+        const distDowntown = Math.hypot(x - LANDMARKS.downtown.x, z - LANDMARKS.downtown.z);
+        const distAirport = Math.hypot(x - LANDMARKS.airport.x, z - LANDMARKS.airport.z);
+        const distBeach = Math.hypot(x - LANDMARKS.beach.x, z - LANDMARKS.beach.z);
+        const flatFactor = Math.min(
+          1,
+          Math.min(distDowntown / 340, Math.min(distAirport / 320, distBeach / 260))
+        );
+        return Math.max(-14, h * Math.max(0, Math.min(1, flatFactor)));
+      }
+
+      // Build vertex-colored terrain mesh across 2400x2400
+      const worldGroup = new THREE.Group();
+      scene.add(worldGroup);
+
+      const colliders = []; // { x, z, radius, height }
+
+      function buildTerrainAndWater() {
+        const segs = 128;
+        const geo = new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE, segs, segs);
+        geo.rotateX(-Math.PI / 2);
+
+        const pos = geo.attributes.position;
+        const colors = new Float32Array(pos.count * 3);
+
+        const cUrban = new THREE.Color(0x3a434e);
+        const cGrass = new THREE.Color(0x3b6e3c);
+        const cSand = new THREE.Color(0xd8b878);
+        const cRock = new THREE.Color(0x6b655e);
+        const cSnow = new THREE.Color(0xeef6ff);
+
+        for (let i = 0; i < pos.count; i++) {
+          const vx = pos.getX(i);
+          const vz = pos.getZ(i);
+          const vy = getTerrainHeight(vx, vz);
+          pos.setY(i, vy);
+
+          let col = cGrass.clone();
+          const distDowntown = Math.hypot(vx - LANDMARKS.downtown.x, vz - LANDMARKS.downtown.z);
+          const distAirport = Math.hypot(vx - LANDMARKS.airport.x, vz - LANDMARKS.airport.z);
+          const distDesert = Math.hypot(vx - LANDMARKS.desert.x, vz - LANDMARKS.desert.z);
+
+          if (vy < 1.8 && vx < -620) {
+            col.copy(cSand);
+          } else if (distDesert < 430) {
+            col.copy(cSand);
+          } else if (distDowntown < 320 || distAirport < 310) {
+            col.copy(cUrban);
+          } else if (vy > 85) {
+            col.copy(cSnow).lerp(cRock, Math.max(0, (115 - vy) / 30));
+          } else if (vy > 36) {
+            col.copy(cGrass).lerp(cRock, Math.min(1, (vy - 36) / 42));
+          }
+
+          colors[i * 3] = col.r;
+          colors[i * 3 + 1] = col.g;
+          colors[i * 3 + 2] = col.b;
+        }
+
+        geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geo.computeVertexNormals();
+
+        const terrainMat = new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.9,
+          metalness: 0.05
+        });
+        const terrainMesh = new THREE.Mesh(geo, terrainMat);
+        terrainMesh.receiveShadow = true;
+        worldGroup.add(terrainMesh);
+
+        // Coastal Ocean plane
+        const oceanGeo = new THREE.PlaneGeometry(WORLD_SIZE * 2.2, WORLD_SIZE * 2.2);
+        oceanGeo.rotateX(-Math.PI / 2);
+        const oceanMat = new THREE.MeshStandardMaterial({
+          color: 0x0e7490,
+          roughness: 0.25,
+          metalness: 0.45,
+          transparent: true,
+          opacity: 0.86
+        });
+        const oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
+        oceanMesh.position.y = -2.2;
+        worldGroup.add(oceanMesh);
+
+        // Murky green-brown Alamo Sea water surface
+        const alamoGeo = new THREE.CircleGeometry(195, 48);
+        alamoGeo.rotateX(-Math.PI / 2);
+        const alamoMat = new THREE.MeshStandardMaterial({
+          color: 0x4b5d38,
+          roughness: 0.35,
+          metalness: 0.2,
+          transparent: true,
+          opacity: 0.9
+        });
+        const alamoMesh = new THREE.Mesh(alamoGeo, alamoMat);
+        alamoMesh.position.set(LANDMARKS.alamoSea.x, -1.4, LANDMARKS.alamoSea.z);
+        worldGroup.add(alamoMesh);
+      }
+
+      // Road network & crosswalks
+      function buildRoads() {
+        const roadMat = new THREE.MeshStandardMaterial({ color: 0x22262e, roughness: 0.85 });
+        const stripeMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 });
+        const crosswalkMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+
+        const roadSegments = [
+          // Main North-South Boulevard
+          { x: 180, z: 0, w: 26, d: 1800, rotY: 0 },
+          // Main East-West Avenue
+          { x: 0, z: 220, w: 1800, d: 26, rotY: 0 },
+          // Beach coastal boulevard
+          { x: -740, z: 120, w: 22, d: 1450, rotY: 0 },
+          // Vinewood winding connector
+          { x: -120, z: -320, w: 18, d: 620, rotY: 0.22 },
+          // Desert & Alamo Sea highway
+          { x: 560, z: -420, w: 20, d: 900, rotY: -0.18 },
+          // LSIA Airport access road
+          { x: -240, z: 620, w: 22, d: 520, rotY: 0 }
+        ];
+
+        roadSegments.forEach((seg, idx) => {
+          const group = new THREE.Group();
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(seg.w, 0.22, seg.d), roadMat);
+          mesh.receiveShadow = true;
+          group.add(mesh);
+
+          const centerLine = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.26, seg.d * 0.96), stripeMat);
+          group.add(centerLine);
+
+          group.position.set(seg.x, getTerrainHeight(seg.x, seg.z) + 0.12, seg.z);
+          group.rotation.y = seg.rotY;
+          worldGroup.add(group);
+
+          // Crosswalks near Downtown intersection
+          if (idx < 2) {
+            for (let c = -2; c <= 2; c++) {
+              const cw = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.28, 1.1), crosswalkMat);
+              const cx = idx === 0 ? seg.x + c * 4.2 : seg.x - 24;
+              const cz = idx === 0 ? 252 : seg.z + c * 4.2;
+              cw.position.set(cx, getTerrainHeight(cx, cz) + 0.16, cz);
+              if (idx === 1) cw.rotation.y = Math.PI / 2;
+              worldGroup.add(cw);
+            }
+          }
+        });
+      }
+
+      // Downtown Buildings, Skyscrapers & Iconic Maze Bank Tower
+      function buildDowntownAndMazeTower() {
+        const buildingPalette = [0x334155, 0x475569, 0x1e293b, 0x3f4e63, 0x526071];
+        const neonColors = [0xf43f5e, 0x38bdf8, 0xfbbf24, 0xa855f7];
+
+        for (let i = 0; i < 44; i++) {
+          const angle = i * 2.39996; // Golden angle spread around Downtown
+          const radius = 65 + Math.sqrt(i / 44) * 240;
+          const bx = LANDMARKS.downtown.x + Math.cos(angle) * radius;
+          const bz = LANDMARKS.downtown.z + Math.sin(angle) * radius;
+
+          // Keep clear of main roads & Maze Tower
+          if (Math.abs(bx - 180) < 22 || Math.abs(bz - 220) < 22) continue;
+          if (Math.hypot(bx - LANDMARKS.mazeTower.x, bz - LANDMARKS.mazeTower.z) < 42) continue;
+
+          const baseH = getTerrainHeight(bx, bz);
+          const w = 22 + (i % 4) * 7;
+          const d = 22 + ((i + 2) % 4) * 7;
+          const h = 28 + ((i * 19) % 105);
+
+          const mat = new THREE.MeshStandardMaterial({
+            color: buildingPalette[i % buildingPalette.length],
+            roughness: 0.45,
+            metalness: 0.35
+          });
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+          mesh.position.set(bx, baseH + h / 2, bz);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          worldGroup.add(mesh);
+
+          // Multi-tier crown & subtle lit window band
+          if (h > 65) {
+            const crown = new THREE.Mesh(new THREE.BoxGeometry(w * 0.65, 10, d * 0.65), mat);
+            crown.position.set(bx, baseH + h + 5, bz);
+            worldGroup.add(crown);
+          }
+
+          if (i % 3 === 0) {
+            const neonMat = new THREE.MeshBasicMaterial({ color: neonColors[i % neonColors.length] });
+            const sign = new THREE.Mesh(new THREE.BoxGeometry(w * 0.5, 2.2, 0.6), neonMat);
+            sign.position.set(bx, baseH + 10, bz + d / 2 + 0.4);
+            worldGroup.add(sign);
+          }
+
+          colliders.push({ x: bx, z: bz, radius: Math.max(w, d) * 0.52, height: h });
+        }
+
+        // Iconic Maze Bank Tower (multi-tier black/gold skyscraper + heist pad)
+        const mtX = LANDMARKS.mazeTower.x;
+        const mtZ = LANDMARKS.mazeTower.z;
+        const mtBaseY = getTerrainHeight(mtX, mtZ);
+
+        const mazeGroup = new THREE.Group();
+        mazeGroup.position.set(mtX, mtBaseY, mtZ);
+
+        const darkTowerMat = new THREE.MeshStandardMaterial({
+          color: 0x0f172a,
+          roughness: 0.25,
+          metalness: 0.75
+        });
+        const goldTrimMat = new THREE.MeshStandardMaterial({
+          color: 0xf5b82e,
+          roughness: 0.3,
+          metalness: 0.85
+        });
+
+        const t1 = new THREE.Mesh(new THREE.BoxGeometry(44, 95, 44), darkTowerMat);
+        t1.position.y = 47.5;
+        t1.castShadow = true;
+        t1.receiveShadow = true;
+        mazeGroup.add(t1);
+
+        const t2 = new THREE.Mesh(new THREE.BoxGeometry(31, 65, 31), darkTowerMat);
+        t2.position.y = 95 + 32.5;
+        t2.castShadow = true;
+        mazeGroup.add(t2);
+
+        const t3 = new THREE.Mesh(new THREE.BoxGeometry(19, 36, 19), goldTrimMat);
+        t3.position.y = 160 + 18;
+        t3.castShadow = true;
+        mazeGroup.add(t3);
+
+        // Glowing heist beacon ring at Maze Tower entrance
+        const beaconMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.55 });
+        const beacon = new THREE.Mesh(new THREE.CylinderGeometry(6.5, 6.5, 0.5, 24), beaconMat);
+        beacon.position.set(0, 0.3, 28);
+        mazeGroup.add(beacon);
+
+        worldGroup.add(mazeGroup);
+        colliders.push({ x: mtX, z: mtZ, radius: 24, height: 195 });
+      }
+
+      // Vespucci / Del Perro Beach, Boardwalk, Pier & Palm Trees
+      function buildBeachAndPier() {
+        const boardMat = new THREE.MeshStandardMaterial({ color: 0x8d6e4c, roughness: 0.85 });
+        const boardwalk = new THREE.Mesh(new THREE.BoxGeometry(14, 0.5, 680), boardMat);
+        boardwalk.position.set(-800, getTerrainHeight(-800, 540) + 0.35, 540);
+        boardwalk.receiveShadow = true;
+        worldGroup.add(boardwalk);
+
+        // Del Perro Pier extending west into the ocean
+        const pier = new THREE.Mesh(new THREE.BoxGeometry(170, 1.2, 22), boardMat);
+        pier.position.set(-960, -0.4, 620);
+        pier.castShadow = true;
+        pier.receiveShadow = true;
+        worldGroup.add(pier);
+
+        // Palm trees along promenade & beach
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4f35, roughness: 0.9 });
+        const frondMat = new THREE.MeshStandardMaterial({ color: 0x228b3b, roughness: 0.75 });
+
+        for (let i = 0; i < 28; i++) {
+          const px = -770 + ((i % 4) * 28);
+          const pz = 220 + i * 24;
+          const py = getTerrainHeight(px, pz);
+          if (py < 0.2) continue;
+
+          const palm = new THREE.Group();
+          const h = 8 + (i % 4) * 1.5;
+          const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.55, h, 7), trunkMat);
+          trunk.position.y = h / 2;
+          trunk.castShadow = true;
+          palm.add(trunk);
+
+          for (let f = 0; f < 5; f++) {
+            const frond = new THREE.Mesh(new THREE.ConeGeometry(1.8, 4.2, 5), frondMat);
+            const ang = (f / 5) * Math.PI * 2;
+            frond.position.set(Math.cos(ang) * 1.3, h + 0.3, Math.sin(ang) * 1.3);
+            frond.rotation.z = -Math.cos(ang) * 0.9;
+            frond.rotation.x = Math.sin(ang) * 0.9;
+            palm.add(frond);
+          }
+
+          palm.position.set(px, py, pz);
+          worldGroup.add(palm);
+          colliders.push({ x: px, z: pz, radius: 1.1, height: h });
+        }
+      }
+
+      // Vinewood Hills Luxury Villas & Turquoise Pools
+      function buildVinewoodVillas() {
+        const villaMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.4 });
+        const poolMat = new THREE.MeshStandardMaterial({ color: 0x06b6d4, roughness: 0.15, metalness: 0.3 });
+
+        const villaSpots = [
+          { x: -150, z: -520 },
+          { x: -60, z: -610 },
+          { x: -220, z: -630 },
+          { x: -95, z: -460 }
+        ];
+
+        villaSpots.forEach((spot, i) => {
+          const y = getTerrainHeight(spot.x, spot.z);
+          const villa = new THREE.Mesh(new THREE.BoxGeometry(22, 8.5, 16), villaMat);
+          villa.position.set(spot.x, y + 4.25, spot.z);
+          villa.castShadow = true;
+          villa.receiveShadow = true;
+          worldGroup.add(villa);
+
+          const pool = new THREE.Mesh(new THREE.BoxGeometry(11, 0.5, 6), poolMat);
+          pool.position.set(spot.x + (i % 2 === 0 ? 15 : -15), y + 0.25, spot.z + 4);
+          pool.receiveShadow = true;
+          worldGroup.add(pool);
+
+          colliders.push({ x: spot.x, z: spot.z, radius: 12, height: 9 });
+        });
+      }
+
+      // Grand Senora Desert Rocks & Mount Chiliad Pines
+      function buildDesertAndChiliad() {
+        const rockMat = new THREE.MeshStandardMaterial({ color: 0x8c6d53, roughness: 0.92 });
+        const pineMat = new THREE.MeshStandardMaterial({ color: 0x1f4d2e, roughness: 0.85 });
+        const trunkMat = new THREE.MeshStandardMaterial({ color: 0x543a24, roughness: 0.9 });
+
+        // Desert rock formations
+        for (let i = 0; i < 24; i++) {
+          const angle = i * 2.39996;
+          const dist = 60 + (i % 7) * 52;
+          const rx = LANDMARKS.desert.x + Math.cos(angle) * dist;
+          const rz = LANDMARKS.desert.z + Math.sin(angle) * dist;
+          const ry = getTerrainHeight(rx, rz);
+
+          const rad = 4 + (i % 5) * 2.2;
+          const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(rad, 0), rockMat);
+          rock.position.set(rx, ry + rad * 0.55, rz);
+          rock.scale.set(1.2, 0.85, 1.1);
+          rock.castShadow = true;
+          rock.receiveShadow = true;
+          worldGroup.add(rock);
+          colliders.push({ x: rx, z: rz, radius: rad * 0.9, height: rad * 1.3 });
+        }
+
+        // Mount Chiliad pine clusters
+        for (let i = 0; i < 36; i++) {
+          const angle = i * 2.39996;
+          const dist = 55 + (i % 9) * 38;
+          const px = LANDMARKS.chiliad.x + Math.cos(angle) * dist;
+          const pz = LANDMARKS.chiliad.z + Math.sin(angle) * dist;
+          const py = getTerrainHeight(px, pz);
+          if (py > 95) continue;
+
+          const tree = new THREE.Group();
+          const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.55, 4, 6), trunkMat);
+          trunk.position.y = 2;
+          tree.add(trunk);
+
+          const crown = new THREE.Mesh(new THREE.ConeGeometry(2.8, 8.5, 7), pineMat);
+          crown.position.y = 7.5;
+          crown.castShadow = true;
+          tree.add(crown);
+
+          tree.position.set(px, py, pz);
+          worldGroup.add(tree);
+          colliders.push({ x: px, z: pz, radius: 1.4, height: 11 });
+        }
+      }
+
+      // LSIA Airport Runway, Terminal, Control Tower & Stealable Golden Jet
+      let goldenJetMesh = null;
+      const goldenJetState = {
+        x: LANDMARKS.goldenJetSpawn.x,
+        y: getTerrainHeight(LANDMARKS.goldenJetSpawn.x, LANDMARKS.goldenJetSpawn.z) + 2.2,
+        z: LANDMARKS.goldenJetSpawn.z,
+        yaw: -Math.PI / 2,
+        speed: 0,
+        verticalSpeed: 0
+      };
+
+      function buildAirportAndGoldenJet() {
+        const ax = LANDMARKS.airport.x;
+        const az = LANDMARKS.airport.z;
+        const ay = getTerrainHeight(ax, az);
+
+        // Runway strip
+        const runwayMat = new THREE.MeshStandardMaterial({ color: 0x1e242d, roughness: 0.8 });
+        const runway = new THREE.Mesh(new THREE.BoxGeometry(360, 0.3, 34), runwayMat);
+        runway.position.set(ax, ay + 0.15, az + 40);
+        runway.receiveShadow = true;
+        worldGroup.add(runway);
+
+        // Runway dashed center markings
+        const dashMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+        for (let d = -150; d <= 150; d += 26) {
+          const dash = new THREE.Mesh(new THREE.BoxGeometry(12, 0.34, 1.2), dashMat);
+          dash.position.set(ax + d, ay + 0.18, az + 40);
+          worldGroup.add(dash);
+        }
+
+        // Terminal & Control Tower
+        const termMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.4, metalness: 0.3 });
+        const terminal = new THREE.Mesh(new THREE.BoxGeometry(84, 16, 28), termMat);
+        terminal.position.set(ax - 30, ay + 8, az - 35);
+        terminal.castShadow = true;
+        worldGroup.add(terminal);
+        colliders.push({ x: ax - 30, z: az - 35, radius: 36, height: 16 });
+
+        const tower = new THREE.Mesh(new THREE.CylinderGeometry(4.5, 6.5, 42, 12), termMat);
+        tower.position.set(ax + 45, ay + 21, az - 42);
+        tower.castShadow = true;
+        worldGroup.add(tower);
+        colliders.push({ x: ax + 45, z: az - 42, radius: 6, height: 42 });
+
+        // Golden Jet 3D Mesh
+        const goldMat = new THREE.MeshStandardMaterial({
+          color: 0xfbbf24,
+          roughness: 0.2,
+          metalness: 0.9
+        });
+        const darkGlassMat = new THREE.MeshStandardMaterial({
+          color: 0x0f172a,
+          roughness: 0.15,
+          metalness: 0.8
+        });
+
+        const jetGroup = new THREE.Group();
+        const fuselage = new THREE.Mesh(new THREE.CylinderGeometry(2.1, 2.1, 22, 16), goldMat);
+        fuselage.rotation.z = Math.PI / 2;
+        fuselage.castShadow = true;
+        jetGroup.add(fuselage);
+
+        const nose = new THREE.Mesh(new THREE.ConeGeometry(2.1, 5.5, 16), goldMat);
+        nose.rotation.z = -Math.PI / 2;
+        nose.position.x = 13.75;
+        nose.castShadow = true;
+        jetGroup.add(nose);
+
+        const cockpit = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.3, 2.5), darkGlassMat);
+        cockpit.position.set(8.5, 1.85, 0);
+        jetGroup.add(cockpit);
+
+        const mainWing = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.35, 26), goldMat);
+        mainWing.position.set(1, 0, 0);
+        mainWing.castShadow = true;
+        jetGroup.add(mainWing);
+
+        const tailFin = new THREE.Mesh(new THREE.BoxGeometry(4.5, 6.2, 0.4), goldMat);
+        tailFin.position.set(-9, 3.2, 0);
+        tailFin.rotation.z = -0.25;
+        tailFin.castShadow = true;
+        jetGroup.add(tailFin);
+
+        const horizTail = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.3, 10), goldMat);
+        horizTail.position.set(-9.5, 1.2, 0);
+        jetGroup.add(horizTail);
+
+        goldenJetMesh = jetGroup;
+        goldenJetMesh.position.set(goldenJetState.x, goldenJetState.y, goldenJetState.z);
+        goldenJetMesh.rotation.y = goldenJetState.yaw;
+        worldGroup.add(goldenJetMesh);
+      }
+
+      // Interactive Shops (Ammu-Nation & LS Customs / Outfits)
+      const shopMarkers = [];
+
+      function buildInteractiveShops() {
+        const shopConfigs = [
+          {
+            id: 'gun',
+            name: 'Ammu-Nation',
+            x: LANDMARKS.gunShop.x,
+            z: LANDMARKS.gunShop.z,
+            wallColor: 0x3f2e21,
+            signColor: 0xf43f5e
+          },
+          {
+            id: 'customs',
+            name: 'LS Customs & Outfits',
+            x: LANDMARKS.customsShop.x,
+            z: LANDMARKS.customsShop.z,
+            wallColor: 0x1e3a5f,
+            signColor: 0x14b8a6
+          }
+        ];
+
+        shopConfigs.forEach((cfg) => {
+          const y = getTerrainHeight(cfg.x, cfg.z);
+          const group = new THREE.Group();
+          group.position.set(cfg.x, y, cfg.z);
+
+          const bldg = new THREE.Mesh(
+            new THREE.BoxGeometry(18, 8.5, 14),
+            new THREE.MeshStandardMaterial({ color: cfg.wallColor, roughness: 0.55 })
+          );
+          bldg.position.y = 4.25;
+          bldg.castShadow = true;
+          bldg.receiveShadow = true;
+          group.add(bldg);
+
+          const sign = new THREE.Mesh(
+            new THREE.BoxGeometry(12, 2.2, 0.8),
+            new THREE.MeshBasicMaterial({ color: cfg.signColor })
+          );
+          sign.position.set(0, 6.8, 7.4);
+          group.add(sign);
+
+          const pad = new THREE.Mesh(
+            new THREE.CylinderGeometry(3.4, 3.4, 0.3, 20),
+            new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.45 })
+          );
+          pad.position.set(0, 0.2, 10.5);
+          group.add(pad);
+
+          worldGroup.add(group);
+          colliders.push({ x: cfg.x, z: cfg.z, radius: 10.5, height: 8.5 });
+
+          shopMarkers.push({
+            id: cfg.id,
+            name: cfg.name,
+            x: cfg.x,
+            z: cfg.z + 10.5
+          });
+        });
+      }
+
+      // Player Character (Franklin & Lucia styles + Outfit Accent) & Street Car
+      let playerGroup = null;
+      let playerAccentMesh = null;
+      const playerState = {
+        x: LANDMARKS.downtown.x,
+        y: 0,
+        z: LANDMARKS.downtown.z + 55,
+        vy: 0,
+        onGround: true,
+        walkPhase: 0
+      };
+
+      function buildPlayerMesh() {
+        if (playerGroup) {
+          worldGroup.remove(playerGroup);
+        }
+        playerGroup = new THREE.Group();
+
+        const isLucia = saveData.characterId === 'lucia';
+        const skinColor = isLucia ? 0xd69e76 : 0x6b442a;
+        const shirtColor = saveData.outfitAccent || (isLucia ? 0xe11d48 : 0xf59e0b);
+        const pantsColor = isLucia ? 0x0f172a : 0x1e293b;
+
+        const legMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.75 });
+        const leftLeg = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.85, 0.34), legMat);
+        leftLeg.position.set(-0.2, 0.425, 0);
+        leftLeg.castShadow = true;
+        playerGroup.add(leftLeg);
+
+        const rightLeg = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.85, 0.34), legMat);
+        rightLeg.position.set(0.2, 0.425, 0);
+        rightLeg.castShadow = true;
+        playerGroup.add(rightLeg);
+
+        const torsoMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.55 });
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.85, 0.42), torsoMat);
+        torso.position.set(0, 1.25, 0);
+        torso.castShadow = true;
+        playerGroup.add(torso);
+        playerAccentMesh = torso;
+
+        const head = new THREE.Mesh(
+          new THREE.BoxGeometry(0.46, 0.48, 0.46),
+          new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.6 })
+        );
+        head.position.set(0, 1.94, 0);
+        head.castShadow = true;
+        playerGroup.add(head);
+
+        // Gun in right hand
+        const gunMesh = new THREE.Mesh(
+          new THREE.BoxGeometry(0.14, 0.16, 0.55),
+          new THREE.MeshStandardMaterial({ color: 0x18181b, metalness: 0.8, roughness: 0.25 })
+        );
+        gunMesh.position.set(0.48, 1.25, -0.32);
+        playerGroup.add(gunMesh);
+
+        playerGroup.userData = { leftLeg, rightLeg };
+        playerState.y = getTerrainHeight(playerState.x, playerState.z);
+        playerGroup.position.set(playerState.x, playerState.y, playerState.z);
+        worldGroup.add(playerGroup);
+      }
+
+      // Drivable Sports Car
+      let carGroup = null;
+      let carBodyMat = null;
+      const carState = {
+        x: LANDMARKS.downtown.x + 14,
+        y: 0,
+        z: LANDMARKS.downtown.z + 58,
+        yaw: 0,
+        speed: 0
+      };
+
+      function buildSportsCar() {
+        if (carGroup) worldGroup.remove(carGroup);
+        carGroup = new THREE.Group();
+
+        carBodyMat = new THREE.MeshStandardMaterial({
+          color: saveData.carColor || 0xef4444,
+          roughness: 0.25,
+          metalness: 0.75
+        });
+
+        const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.78, 4.8), carBodyMat);
+        chassis.position.y = 0.72;
+        chassis.castShadow = true;
+        carGroup.add(chassis);
+
+        const cabin = new THREE.Mesh(
+          new THREE.BoxGeometry(1.9, 0.62, 2.2),
+          new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.15, metalness: 0.85 })
+        );
+        cabin.position.set(0, 1.35, -0.2);
+        cabin.castShadow = true;
+        carGroup.add(cabin);
+
+        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.85 });
+        const wheelPositions = [
+          [-1.22, 0.42, 1.5],
+          [1.22, 0.42, 1.5],
+          [-1.22, 0.42, -1.5],
+          [1.22, 0.42, -1.5]
+        ];
+        wheelPositions.forEach(([wx, wy, wz]) => {
+          const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.32, 12), wheelMat);
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(wx, wy, wz);
+          wheel.castShadow = true;
+          carGroup.add(wheel);
+        });
+
+        carState.y = getTerrainHeight(carState.x, carState.z);
+        carGroup.position.set(carState.x, carState.y, carState.z);
+        carGroup.rotation.y = carState.yaw;
+        worldGroup.add(carGroup);
+      }
+
+      // Online Lobby Remote Players & Hostile NPC Guards
+      const remotePlayers = [];
+      const npcs = [];
+
+      function buildRemotePlayersAndNPCs() {
+        const remoteNames = ['Jax_LS', 'Elena_99', 'Kaito_Drift', 'Niko_V', 'Mia_Sunset', 'Zack_R'];
+        const remoteColors = [0x38bdf8, 0xf472b6, 0xa3e635, 0xfb923c, 0xc084fc, 0x2dd4bf];
+
+        for (let i = 0; i < 6; i++) {
+          const g = new THREE.Group();
+          const body = new THREE.Mesh(
+            new THREE.BoxGeometry(0.75, 1.55, 0.42),
+            new THREE.MeshStandardMaterial({ color: remoteColors[i], roughness: 0.5 })
+          );
+          body.position.y = 0.85;
+          body.castShadow = true;
+          g.add(body);
+
+          const head = new THREE.Mesh(
+            new THREE.BoxGeometry(0.44, 0.44, 0.44),
+            new THREE.MeshStandardMaterial({ color: 0xd9a077, roughness: 0.6 })
+          );
+          head.position.y = 1.88;
+          g.add(head);
+
+          const rx = (i - 2.5) * 75 + 120;
+          const rz = 210 + (i % 2) * 35;
+          g.position.set(rx, getTerrainHeight(rx, rz), rz);
+          worldGroup.add(g);
+
+          remotePlayers.push({
+            name: remoteNames[i],
+            group: g,
+            centerX: rx,
+            centerZ: rz,
+            phase: i * 1.1,
+            radius: 18 + (i % 3) * 8
+          });
+        }
+
+        // Patrol NPCs around Downtown & Airport
+        const npcSpawns = [
+          { x: 145, z: 245 },
+          { x: 215, z: 245 },
+          { x: 165, z: 185 },
+          { x: -250, z: 905 },
+          { x: -215, z: 915 }
+        ];
+
+        npcSpawns.forEach((sp, idx) => {
+          const g = new THREE.Group();
+          const mat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6 });
+          const body = new THREE.Mesh(new THREE.BoxGeometry(0.75, 1.55, 0.42), mat);
+          body.position.y = 0.85;
+          body.castShadow = true;
+          g.add(body);
+
+          const head = new THREE.Mesh(
+            new THREE.BoxGeometry(0.44, 0.44, 0.44),
+            new THREE.MeshStandardMaterial({ color: 0xc68b65, roughness: 0.6 })
+          );
+          head.position.y = 1.88;
+          g.add(head);
+
+          g.position.set(sp.x, getTerrainHeight(sp.x, sp.z), sp.z);
+          worldGroup.add(g);
+
+          npcs.push({
+            id: idx,
+            group: g,
+            hp: 75,
+            alive: true,
+            respawnTimer: 0,
+            homeX: sp.x,
+            homeZ: sp.z,
+            phase: idx * 1.4
+          });
+        });
+      }
+
+      // Active Tracers & Impact Sparks
+      const tracers = [];
+
+      function spawnTracer(startPos, endPos, colorHex = 0xfbbf24) {
+        const points = [startPos.clone(), endPos.clone()];
+        const geo = new THREE.BufferGeometry().setFromPoints(points);
+        const mat = new THREE.LineBasicMaterial({ color: colorHex, transparent: true, opacity: 0.95 });
+        const line = new THREE.Line(geo, mat);
+        worldGroup.add(line);
+        tracers.push({ line, life: 0.11 });
+      }
+
+      // Mission Waypoint Beacon in 3D World
+      const missionBeacon = new THREE.Mesh(
+        new THREE.CylinderGeometry(3.2, 3.2, 42, 20, 1, true),
+        new THREE.MeshBasicMaterial({
+          color: 0xfbbf24,
+          transparent: true,
+          opacity: 0.35,
+          side: THREE.DoubleSide
+        })
+      );
+      missionBeacon.visible = false;
+      worldGroup.add(missionBeacon);
+
+      // Build complete world once
+      buildTerrainAndWater();
+      buildRoads();
+      buildDowntownAndMazeTower();
+      buildBeachAndPier();
+      buildVinewoodVillas();
+      buildDesertAndChiliad();
+      buildAirportAndGoldenJet();
+      buildInteractiveShops();
+      buildPlayerMesh();
+      buildSportsCar();
+      buildRemotePlayersAndNPCs();
+
+      // -----------------------------------------------------------
+      // 6. COMIC LOADING SEQUENCE -> AUTH SCREEN
+      // -----------------------------------------------------------
+      const loadingSteps = [
+        { pct: 18, text: 'Generiere 2400×2400 San Andreas Gelände & Küsten...' },
+        { pct: 42, text: 'Errichte Downtown-Wolkenkratzer & Maze Bank Tower...' },
+        { pct: 68, text: 'Platziere Vinewood Villen, Wüste, Mount Chiliad & LSIA...' },
+        { pct: 88, text: 'Initialisiere Waffenrad, Shops, Raubzüge & Touch-Steuerung...' },
+        { pct: 100, text: 'Bereit für Los Santos!' }
+      ];
+
+      let loadIdx = 0;
+      const loadingBarFill = document.getElementById('loadingBarFill');
+      const loadingPercent = document.getElementById('loadingPercent');
+      const loadingStatusText = document.getElementById('loadingStatusText');
+
+      const loadInterval = setInterval(() => {
+        if (loadIdx < loadingSteps.length) {
+          const item = loadingSteps[loadIdx++];
+          loadingBarFill.style.width = `${item.pct}%`;
+          loadingPercent.textContent = `${item.pct}%`;
+          loadingStatusText.textContent = item.text;
+        } else {
+          clearInterval(loadInterval);
+          setTimeout(() => {
+            const screen = document.getElementById('loadingScreen');
+            screen.style.opacity = '0';
+            setTimeout(() => {
+              screen.classList.add('hidden');
+              openAuthScreen();
+            }, 450);
+          }, 260);
+        }
+      }, 260);
+
+      // -----------------------------------------------------------
+      // 7. AUTH / LOBBY / CHARACTER SELECTION LOGIC
+      // -----------------------------------------------------------
+      function updateAuthPreviewUI() {
+        document.getElementById('playerNameInput').value = saveData.playerName;
+        document.getElementById('authCashPreview').textContent = `${saveData.cash.toLocaleString('de-DE')} €`;
+        document.getElementById('authHeistsPreview').textContent = `${saveData.heistsCompleted}`;
+        document.getElementById('roomCodeInput').value = saveData.roomCode;
+
+        const isPublic = saveData.lobbyMode === 'public';
+        const btnPub = document.getElementById('btnModePublic');
+        const btnPriv = document.getElementById('btnModePrivate');
+        const privBox = document.getElementById('privateRoomBox');
+
+        if (isPublic) {
+          btnPub.className = 'py-2.5 px-3 rounded-xl text-xs font-bold border border-amber-400 bg-amber-400/20 text-amber-200 transition';
+          btnPriv.className = 'py-2.5 px-3 rounded-xl text-xs font-bold border border-white/15 bg-slate-950/60 text-slate-300 hover:border-white/30 transition';
+          privBox.classList.add('hidden');
+        } else {
+          btnPriv.className = 'py-2.5 px-3 rounded-xl text-xs font-bold border border-amber-400 bg-amber-400/20 text-amber-200 transition';
+          btnPub.className = 'py-2.5 px-3 rounded-xl text-xs font-bold border border-white/15 bg-slate-950/60 text-slate-300 hover:border-white/30 transition';
+          privBox.classList.remove('hidden');
+        }
+
+        const fCard = document.getElementById('charCardFranklin');
+        const lCard = document.getElementById('charCardLucia');
+        const isFranklin = saveData.characterId !== 'lucia';
+
+        fCard.className = isFranklin
+          ? 'char-select-card text-left rounded-2xl p-4 bg-slate-900/85 border-2 border-amber-400 shadow-lg shadow-amber-500/10 transition flex flex-col justify-between'
+          : 'char-select-card text-left rounded-2xl p-4 bg-slate-900/75 border-2 border-white/10 hover:border-white/30 transition flex flex-col justify-between';
+
+        lCard.className = !isFranklin
+          ? 'char-select-card text-left rounded-2xl p-4 bg-slate-900/85 border-2 border-rose-400 shadow-lg shadow-rose-500/10 transition flex flex-col justify-between'
+          : 'char-select-card text-left rounded-2xl p-4 bg-slate-900/75 border-2 border-white/10 hover:border-white/30 transition flex flex-col justify-between';
+      }
+
+      function openAuthScreen() {
+        gameState.screen = 'auth';
+        document.getElementById('hudLayer').classList.add('hidden');
+        const auth = document.getElementById('authScreen');
+        auth.classList.remove('hidden');
+        auth.classList.add('flex');
+        updateAuthPreviewUI();
+      }
+
+      document.getElementById('btnModePublic').addEventListener('click', () => {
+        saveData.lobbyMode = 'public';
+        persistSaveData();
+      });
+
+      document.getElementById('btnModePrivate').addEventListener('click', () => {
+        saveData.lobbyMode = 'private';
+        persistSaveData();
+      });
+
+      document.getElementById('btnRandomCode').addEventListener('click', () => {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let code = 'LS';
+        for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+        saveData.roomCode = code;
+        persistSaveData();
+      });
+
+      document.getElementById('charCardFranklin').addEventListener('click', () => {
+        saveData.characterId = 'franklin';
+        persistSaveData();
+        buildPlayerMesh();
+      });
+
+      document.getElementById('charCardLucia').addEventListener('click', () => {
+        saveData.characterId = 'lucia';
+        persistSaveData();
+        buildPlayerMesh();
+      });
+
+      document.getElementById('btnResetSaveAuth').addEventListener('click', () => {
+        saveData = defaultSaveData();
+        persistSaveData();
+        buildPlayerMesh();
+        buildSportsCar();
+        showToast('Spielstand wurde auf Anfang zurückgesetzt.', 'info');
+      });
+
+      document.getElementById('btnEnterWorld').addEventListener('click', () => {
+        const nameVal = document.getElementById('playerNameInput').value.trim();
+        saveData.playerName = nameVal || 'Player_LS';
+        saveData.roomCode = (document.getElementById('roomCodeInput').value.trim() || 'LS777').toUpperCase();
+        persistSaveData();
+        buildPlayerMesh();
+
+        document.getElementById('authScreen').classList.add('hidden');
+        document.getElementById('authScreen').classList.remove('flex');
+        document.getElementById('hudLayer').classList.remove('hidden');
+        gameState.screen = 'playing';
+
+        refreshTouchLayerVisibility();
+        updateHudUI();
+        showToast(`Willkommen in Los Santos, ${saveData.playerName}!`, 'success');
+      });
+
+      // -----------------------------------------------------------
+      // 8. HUD, DISTRICT DETECTION, WEAPON WHEEL, SHOPS & HEISTS
+      // -----------------------------------------------------------
+      function detectDistrict(x, z) {
+        if (Math.hypot(x - LANDMARKS.airport.x, z - LANDMARKS.airport.z) < 260) return 'LSIA Flughafen';
+        if (Math.hypot(x - LANDMARKS.beach.x, z - LANDMARKS.beach.z) < 310 || x < -650) return 'Vespucci Beach';
+        if (Math.hypot(x - LANDMARKS.chiliad.x, z - LANDMARKS.chiliad.z) < 360) return 'Mount Chiliad';
+        if (Math.hypot(x - LANDMARKS.alamoSea.x, z - LANDMARKS.alamoSea.z) < 220) return 'Alamo Sea';
+        if (Math.hypot(x - LANDMARKS.desert.x, z - LANDMARKS.desert.z) < 380) return 'Grand Senora Wüste';
+        if (Math.hypot(x - LANDMARKS.vinewood.x, z - LANDMARKS.vinewood.z) < 320) return 'Vinewood Hills';
+        return 'Downtown Los Santos';
+      }
+
+      function updateHudUI() {
+        document.getElementById('hudPlayerName').textContent = saveData.playerName;
+        document.getElementById('hudLobbyTag').textContent =
+          saveData.lobbyMode === 'private' ? `PRIVAT • ${saveData.roomCode}` : 'ÖFFENTLICH';
+        document.getElementById('hudCash').textContent = `${saveData.cash.toLocaleString('de-DE')} €`;
+        document.getElementById('shopCashDisplay').textContent = `${saveData.cash.toLocaleString('de-DE')} €`;
+
+        const stars = Math.max(0, Math.min(5, gameState.wantedLevel));
+        document.getElementById('hudWantedStars').textContent = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+
+        const hp = Math.max(0, Math.min(100, Math.round(gameState.health)));
+        const ar = Math.max(0, Math.min(100, Math.round(gameState.armor)));
+        document.getElementById('hudHealthBar').style.width = `${hp}%`;
+        document.getElementById('hudHealthText').textContent = `${hp}`;
+        document.getElementById('hudArmorBar').style.width = `${ar}%`;
+        document.getElementById('hudArmorText').textContent = `${ar}`;
+
+        const w = WEAPONS[gameState.currentWeaponIdx] || WEAPONS[0];
+        document.getElementById('hudWeaponName').textContent = w.name;
+        document.getElementById('hudAmmoText').textContent = gameState.reloading
+          ? 'LÄDT...'
+          : `${gameState.ammoInMag} / ∞`;
+
+        const missionBox = document.getElementById('hudMissionBox');
+        if (gameState.mission) {
+          missionBox.classList.remove('hidden');
+          document.getElementById('hudMissionTitle').textContent =
+            gameState.mission.type === 'maze' ? 'Maze Tower Raubzug' : 'Golden Jet Entführung';
+          document.getElementById('hudMissionReward').textContent = `+${gameState.mission.reward.toLocaleString('de-DE')} €`;
+          if (gameState.mission.type === 'maze') {
+            document.getElementById('hudMissionStep').textContent =
+              gameState.mission.step === 1
+                ? '1/2: Gehe zum Eingang des Maze Bank Towers in Downtown.'
+                : '2/2: Fliehe mit der Beute zum Vespucci-Strand!';
+          } else {
+            document.getElementById('hudMissionStep').textContent =
+              gameState.mission.step === 1
+                ? '1/2: Gehe zum Golden Jet auf der LSIA-Startbahn und steige ein.'
+                : '2/2: Fliege den Golden Jet über San Andreas (Höhe & Schub)!';
+          }
+        } else {
+          missionBox.classList.add('hidden');
+        }
+      }
+
+      // Weapon Wheel
+      function openWeaponWheel() {
+        const list = document.getElementById('weaponWheelList');
+        list.innerHTML = '';
+        WEAPONS.forEach((w, idx) => {
+          const owned = saveData.ownedWeapons.includes(w.id);
+          const selected = gameState.currentWeaponIdx === idx;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `w-full p-3 rounded-xl border text-left flex items-center justify-between transition ${
+            selected
+              ? 'border-amber-400 bg-amber-400/20'
+              : owned
+              ? 'border-white/15 bg-slate-900/80 hover:border-white/35'
+              : 'border-white/5 bg-slate-950/60 opacity-60'
+          }`;
+          btn.innerHTML = `
+            <div>
+              <div class="font-bold text-sm text-white">${w.name}</div>
+              <div class="text-[11px] text-slate-400">Schaden ${w.damage} • Magazin ${w.magSize}</div>
+            </div>
+            <span class="text-xs font-extrabold ${owned ? 'text-emerald-400' : 'text-amber-300'}">
+              ${selected ? 'AUSGERÜSTET' : owned ? 'WÄHLEN' : 'IM SHOP KAUFEN'}
+            </span>
+          `;
+          btn.addEventListener('click', () => {
+            if (!owned) {
+              showToast('Kaufe diese Waffe zuerst bei Ammu-Nation!', 'warn');
+              return;
+            }
+            gameState.currentWeaponIdx = idx;
+            gameState.ammoInMag = w.magSize;
+            gameState.reloading = false;
+            updateHudUI();
+            closeModal('weaponWheelModal');
+            showToast(`${w.name} ausgerüstet.`, 'info');
+          });
+          list.appendChild(btn);
+        });
+        openModal('weaponWheelModal');
+      }
+
+      document.getElementById('btnCloseWeaponWheel').addEventListener('click', () => closeModal('weaponWheelModal'));
+
+      // Shops
+      function openShop(shopType) {
+        const isGun = shopType === 'gun';
+        document.getElementById('shopBadge').textContent = isGun ? 'Waffen & Ausrüstung' : 'Style & Fahrzeug-Tuning';
+        document.getElementById('shopTitle').textContent = isGun ? 'AMMU-NATION' : 'LS CUSTOMS & OUTFITS';
+        const container = document.getElementById('shopItemsContainer');
+        container.innerHTML = '';
+
+        const items = isGun ? GUN_SHOP_ITEMS : CUSTOMS_SHOP_ITEMS;
+        items.forEach((item) => {
+          const alreadyOwnedWeapon = item.type === 'weapon' && saveData.ownedWeapons.includes(item.weaponId);
+          const card = document.createElement('div');
+          card.className = 'rounded-xl bg-slate-900/85 border border-white/10 p-3.5 flex flex-col justify-between gap-3';
+          card.innerHTML = `
+            <div>
+              <div class="flex items-start justify-between gap-2">
+                <div class="font-bold text-sm text-white">${item.title}</div>
+                <div class="text-xs font-black text-emerald-400 whitespace-nowrap">${item.price.toLocaleString('de-DE')} €</div>
+              </div>
+              <p class="text-[11px] text-slate-300 mt-1">${item.desc}</p>
+            </div>
+            <button type="button" class="w-full py-2 rounded-lg text-xs font-extrabold transition ${
+              alreadyOwnedWeapon
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                : 'btn-gold'
+            }">
+              ${alreadyOwnedWeapon ? 'Bereits im Besitz' : 'Kaufen'}
+            </button>
+          `;
+
+          const buyBtn = card.querySelector('button');
+          buyBtn.addEventListener('click', () => {
+            if (alreadyOwnedWeapon) {
+              const idx = WEAPONS.findIndex((w) => w.id === item.weaponId);
+              if (idx >= 0) {
+                gameState.currentWeaponIdx = idx;
+                gameState.ammoInMag = WEAPONS[idx].magSize;
+              }
+              updateHudUI();
+              showToast(`${item.title} ausgerüstet!`, 'info');
+              return;
+            }
+            if (saveData.cash < item.price) {
+              showToast('Nicht genug Bargeld für diesen Kauf!', 'warn');
+              return;
+            }
+            saveData.cash -= item.price;
+
+            if (item.type === 'weapon') {
+              saveData.ownedWeapons.push(item.weaponId);
+              const idx = WEAPONS.findIndex((w) => w.id === item.weaponId);
+              if (idx >= 0) {
+                gameState.currentWeaponIdx = idx;
+                gameState.ammoInMag = WEAPONS[idx].magSize;
+              }
+            } else if (item.type === 'armor') {
+              gameState.armor = 100;
+            } else if (item.type === 'heal') {
+              gameState.health = 100;
+            } else if (item.type === 'outfit') {
+              saveData.outfitName = item.outfitName;
+              saveData.outfitAccent = item.accent;
+              buildPlayerMesh();
+            } else if (item.type === 'carColor') {
+              saveData.carColor = item.color;
+              saveData.carColorName = item.colorName;
+              if (carBodyMat) carBodyMat.color.setHex(item.color);
+            }
+
+            persistSaveData();
+            sfx.playCash();
+            showToast(`${item.title} gekauft!`, 'success');
+            openShop(shopType);
+          });
+
+          container.appendChild(card);
+        });
+
+        openModal('shopModal');
+      }
+
+      document.getElementById('btnCloseShop').addEventListener('click', () => closeModal('shopModal'));
+
+      // Heists
+      function startMission(type) {
+        closeModal('heistsModal');
+        if (type === 'maze') {
+          gameState.mission = { type: 'maze', step: 1, reward: 180000 };
+          missionBeacon.visible = true;
+          missionBeacon.position.set(LANDMARKS.mazeTower.x, getTerrainHeight(LANDMARKS.mazeTower.x, LANDMARKS.mazeTower.z) + 21, LANDMARKS.mazeTower.z + 28);
+          showToast('Maze Tower Raubzug gestartet! Gehe zum Eingang in Downtown.', 'info');
+        } else {
+          gameState.mission = { type: 'jet', step: 1, reward: 240000 };
+          missionBeacon.visible = true;
+          missionBeacon.position.set(goldenJetState.x, goldenJetState.y + 20, goldenJetState.z);
+          showToast('Golden Jet Raubzug gestartet! Begib dich zu LSIA.', 'info');
+        }
+        gameState.wantedLevel = Math.max(gameState.wantedLevel, 2);
+        updateHudUI();
+      }
+
+      document.getElementById('btnOpenHeists').addEventListener('click', () => openModal('heistsModal'));
+      document.getElementById('btnCloseHeists').addEventListener('click', () => closeModal('heistsModal'));
+      document.getElementById('btnStartMazeHeist').addEventListener('click', () => startMission('maze'));
+      document.getElementById('btnStartJetHeist').addEventListener('click', () => startMission('jet'));
+
+      function checkMissionProgress() {
+        if (!gameState.mission) return;
+        const m = gameState.mission;
+
+        if (m.type === 'maze') {
+          if (m.step === 1) {
+            const d = Math.hypot(playerState.x - LANDMARKS.mazeTower.x, playerState.z - (LANDMARKS.mazeTower.z + 28));
+            if (d < 12) {
+              m.step = 2;
+              saveData.cash += 30000;
+              gameState.wantedLevel = Math.max(gameState.wantedLevel, 3);
+              missionBeacon.position.set(LANDMARKS.beach.x, getTerrainHeight(LANDMARKS.beach.x, LANDMARKS.beach.z) + 21, LANDMARKS.beach.z);
+              persistSaveData();
+              sfx.playCash();
+              showToast('Tresor geknackt (+30.000 €)! Jetzt zum Vespucci-Strand flüchten!', 'success');
+            }
+          } else if (m.step === 2) {
+            const d = Math.hypot(playerState.x - LANDMARKS.beach.x, playerState.z - LANDMARKS.beach.z);
+            if (d < 28) {
+              saveData.cash += m.reward;
+              saveData.heistsCompleted += 1;
+              gameState.mission = null;
+              missionBeacon.visible = false;
+              gameState.wantedLevel = 0;
+              persistSaveData();
+              sfx.playCash();
+              showToast(`Maze Tower Raubzug geschafft! +${m.reward.toLocaleString('de-DE')} € erhalten!`, 'success');
+            }
+          }
+        } else if (m.type === 'jet') {
+          if (m.step === 1 && gameState.inJet) {
+            m.step = 2;
+            gameState.wantedLevel = Math.max(gameState.wantedLevel, 3);
+            missionBeacon.visible = false;
+            updateHudUI();
+            showToast('Golden Jet übernommen! Steige mit Leertaste/Aufwärts in die Lüfte!', 'success');
+          } else if (m.step === 2 && gameState.inJet && goldenJetState.y > getTerrainHeight(goldenJetState.x, goldenJetState.z) + 32) {
+            saveData.cash += m.reward;
+            saveData.heistsCompleted += 1;
+            gameState.mission = null;
+            gameState.wantedLevel = 1;
+            persistSaveData();
+            sfx.playCash();
+            showToast(`Golden Jet Entführung geglückt! +${m.reward.toLocaleString('de-DE')} € erhalten!`, 'success');
+          }
+        }
+      }
+
+      // -----------------------------------------------------------
+      // 9. ADMIN PANEL & SETTINGS MODAL LOGIC
+      // -----------------------------------------------------------
+      function applyTimeOfDay(mode) {
+        gameState.timeOfDay = mode;
+        if (mode === 'morning') {
+          scene.background = new THREE.Color(0x93c5fd);
+          scene.fog.color.setHex(0xbfdbfe);
+          dirLight.color.setHex(0xffedd5);
+          dirLight.intensity = 1.05;
+          dirLight.position.set(-280, 220, 180);
+          hemiLight.intensity = 0.85;
+        } else if (mode === 'noon') {
+          scene.background = new THREE.Color(0x6ec6ff);
+          scene.fog.color.setHex(0x8ecae6);
+          dirLight.color.setHex(0xfffbeb);
+          dirLight.intensity = 1.3;
+          dirLight.position.set(160, 440, 140);
+          hemiLight.intensity = 0.9;
+        } else if (mode === 'golden') {
+          scene.background = new THREE.Color(0xf97316);
+          scene.fog.color.setHex(0xfdba74);
+          dirLight.color.setHex(0xff9e44);
+          dirLight.intensity = 1.15;
+          dirLight.position.set(-340, 110, 200);
+          hemiLight.intensity = 0.72;
+        } else if (mode === 'night') {
+          scene.background = new THREE.Color(0x090d1a);
+          scene.fog.color.setHex(0x0f172a);
+          dirLight.color.setHex(0x60a5fa);
+          dirLight.intensity = 0.42;
+          dirLight.position.set(180, 320, -180);
+          hemiLight.intensity = 0.35;
+        }
+        showToast(`Tageszeit geändert: ${mode.toUpperCase()}`, 'info');
+      }
+
+      function applyWeather(w) {
+        gameState.weather = w;
+        if (w === 'clear') {
+          scene.fog.density = 0.00058;
+        } else if (w === 'rain') {
+          scene.fog.density = 0.0011;
+        } else if (w === 'storm') {
+          scene.fog.density = 0.0014;
+          gameState.lightningTimer = 1.2;
+        }
+        showToast(`Wetter geändert: ${w.toUpperCase()}`, 'info');
+      }
+
+      document.getElementById('btnOpenAdmin').addEventListener('click', () => openModal('adminModal'));
+      document.getElementById('btnCloseAdmin').addEventListener('click', () => closeModal('adminModal'));
+
+      document.querySelectorAll('.admin-time-btn').forEach((btn) => {
+        btn.addEventListener('click', () => applyTimeOfDay(btn.dataset.adminTime));
+      });
+
+      document.querySelectorAll('.admin-weather-btn').forEach((btn) => {
+        btn.addEventListener('click', () => applyWeather(btn.dataset.adminWeather));
+      });
+
+      document.getElementById('btnAdminFly').addEventListener('click', () => {
+        gameState.flyMode = !gameState.flyMode;
+        document.getElementById('adminFlyLabel').textContent = gameState.flyMode ? 'AN' : 'AUS';
+        document.getElementById('adminFlyLabel').className = gameState.flyMode ? 'text-emerald-400' : 'text-rose-400';
+        showToast(`Flugmodus ${gameState.flyMode ? 'aktiviert' : 'deaktiviert'}.`, 'info');
+      });
+
+      document.getElementById('btnAdminGod').addEventListener('click', () => {
+        gameState.godMode = !gameState.godMode;
+        if (gameState.godMode) {
+          gameState.health = 100;
+          gameState.armor = 100;
+        }
+        document.getElementById('adminGodLabel').textContent = gameState.godMode ? 'AN' : 'AUS';
+        document.getElementById('adminGodLabel').className = gameState.godMode ? 'text-emerald-400' : 'text-rose-400';
+        updateHudUI();
+        showToast(`Unverwundbarkeit ${gameState.godMode ? 'aktiviert' : 'deaktiviert'}.`, 'info');
+      });
+
+      document.getElementById('btnAdminMoney').addEventListener('click', () => {
+        saveData.cash += 100000;
+        persistSaveData();
+        sfx.playCash();
+        showToast('+100.000 € gutgeschrieben!', 'success');
+      });
+
+      document.getElementById('btnAdminSummonCar').addEventListener('click', () => {
+        gameState.inVehicle = false;
+        gameState.inJet = false;
+        carState.x = playerState.x + Math.sin(gameState.yaw) * 5;
+        carState.z = playerState.z + Math.cos(gameState.yaw) * 5;
+        carState.y = getTerrainHeight(carState.x, carState.z);
+        carState.yaw = gameState.yaw;
+        carState.speed = 0;
+        carGroup.position.set(carState.x, carState.y, carState.z);
+        carGroup.rotation.y = carState.yaw;
+        closeModal('adminModal');
+        showToast('Sportwagen direkt vor dir herbeigerufen!', 'success');
+      });
+
+      document.getElementById('btnAdminPaintCar').addEventListener('click', () => {
+        const colors = [0xef4444, 0xf59e0b, 0x10b981, 0x3b82f6, 0xa855f7, 0xec4899];
+        const nextCol = colors[Math.floor(Math.random() * colors.length)];
+        saveData.carColor = nextCol;
+        if (carBodyMat) carBodyMat.color.setHex(nextCol);
+        persistSaveData();
+        showToast('Fahrzeuglackierung aktualisiert!', 'success');
+      });
+
+      document.getElementById('btnAdminWantedCycle').addEventListener('click', () => {
+        gameState.wantedLevel = gameState.wantedLevel >= 5 ? 0 : gameState.wantedLevel + 1;
+        updateHudUI();
+        showToast(`Fahndungslevel: ${gameState.wantedLevel} Sterne`, 'info');
+      });
+
+      document.querySelectorAll('.tp-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const key = btn.dataset.tp;
+          const dest = LANDMARKS[key] || LANDMARKS.downtown;
+          gameState.inVehicle = false;
+          gameState.inJet = false;
+          playerState.x = dest.x;
+          playerState.z = dest.z + 24;
+          playerState.y = getTerrainHeight(playerState.x, playerState.z);
+          playerGroup.position.set(playerState.x, playerState.y, playerState.z);
+          closeModal('adminModal');
+          showToast(`Schnellreise nach ${dest.name}.`, 'info');
+        });
+      });
+
+      // Settings Modal
+      const sensRange = document.getElementById('sensRangeInput');
+      const forceTouchChk = document.getElementById('forceTouchCheckbox');
+      const soundChk = document.getElementById('soundCheckbox');
+
+      function syncSettingsUI() {
+        sensRange.value = saveData.settings.sensitivity;
+        document.getElementById('sensValueLabel').textContent = `${Number(saveData.settings.sensitivity).toFixed(1)}x`;
+        forceTouchChk.checked = !!saveData.settings.forceTouch;
+        soundChk.checked = saveData.settings.sound !== false;
+      }
+
+      function refreshTouchLayerVisibility() {
+        const layer = document.getElementById('touchControlsLayer');
+        if (gameState.screen !== 'playing') {
+          layer.classList.add('hidden');
+          return;
+        }
+        const showTouch = gameState.isTouchDevice || saveData.settings.forceTouch;
+        layer.classList.toggle('hidden', !showTouch);
+        document.getElementById('hudControlHint').textContent = showTouch
+          ? 'Joystick Bewegen • Feuer/Ziel Rechts • Aktion Interagieren'
+          : 'WASD Bewegen • Maus Zielen/Schuss • TAB Waffenrad • E Interaktion';
+      }
+
+      document.getElementById('btnOpenSettings').addEventListener('click', () => {
+        syncSettingsUI();
+        openModal('settingsModal');
+      });
+      document.getElementById('btnCloseSettings').addEventListener('click', () => closeModal('settingsModal'));
+
+      sensRange.addEventListener('input', () => {
+        document.getElementById('sensValueLabel').textContent = `${Number(sensRange.value).toFixed(1)}x`;
+      });
+
+      document.getElementById('btnSaveSettingsClose').addEventListener('click', () => {
+        saveData.settings.sensitivity = parseFloat(sensRange.value) || 1.0;
+        saveData.settings.forceTouch = forceTouchChk.checked;
+        saveData.settings.sound = soundChk.checked;
+        sfx.enabled = saveData.settings.sound;
+        persistSaveData();
+        refreshTouchLayerVisibility();
+        closeModal('settingsModal');
+        showToast('Einstellungen gespeichert.', 'success');
+      });
+
+      document.getElementById('btnBackToLobby').addEventListener('click', () => {
+        closeModal('settingsModal');
+        openAuthScreen();
+      });
+
+      // -----------------------------------------------------------
+      // 10. WEAPONS, SHOOTING, RELOAD & CONTEXT INTERACTIONS
+      // -----------------------------------------------------------
+      function reloadWeapon() {
+        const w = WEAPONS[gameState.currentWeaponIdx] || WEAPONS[0];
+        if (gameState.reloading || gameState.ammoInMag >= w.magSize) return;
+        gameState.reloading = true;
+        gameState.reloadTimer = 1.05;
+        updateHudUI();
+      }
+
+      function fireWeapon() {
+        if (gameState.screen !== 'playing') return;
+        if (gameState.reloading || gameState.fireCooldown > 0) return;
+
+        const w = WEAPONS[gameState.currentWeaponIdx] || WEAPONS[0];
+        if (gameState.ammoInMag <= 0) {
+          reloadWeapon();
+          return;
+        }
+
+        gameState.ammoInMag -= 1;
+        gameState.fireCooldown = w.fireRate;
+        sfx.playShot(w.id);
+
+        const muzzlePos = new THREE.Vector3(playerState.x, playerState.y + 1.45, playerState.z);
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+
+        for (let p = 0; p < w.pellets; p++) {
+          const shotDir = dir.clone();
+          shotDir.x += (Math.random() - 0.5) * w.spread;
+          shotDir.y += (Math.random() - 0.5) * w.spread;
+          shotDir.z += (Math.random() - 0.5) * w.spread;
+          shotDir.normalize();
+
+          const endPos = muzzlePos.clone().addScaledVector(shotDir, 130);
+
+          // Check hit against NPCs
+          npcs.forEach((npc) => {
+            if (!npc.alive) return;
+            const npcPos = npc.group.position.clone().add(new THREE.Vector3(0, 1.1, 0));
+            const toNpc = npcPos.clone().sub(muzzlePos);
+            const proj = toNpc.dot(shotDir);
+            if (proj > 0 && proj < 130) {
+              const closest = muzzlePos.clone().addScaledVector(shotDir, proj);
+              if (closest.distanceTo(npcPos) < 1.35) {
+                npc.hp -= w.damage;
+                endPos.copy(npcPos);
+                gameState.wantedLevel = Math.min(5, Math.max(gameState.wantedLevel, 1));
+                gameState.wantedDecayTimer = 14;
+                if (npc.hp <= 0) {
+                  npc.alive = false;
+                  npc.respawnTimer = 16;
+                  npc.group.visible = false;
+                  saveData.cash += 350;
+                  persistSaveData();
+                  showToast('Ziel ausgeschaltet (+350 €)', 'success');
+                }
+              }
+            }
+          });
+
+          spawnTracer(muzzlePos, endPos, w.color);
+        }
+
+        if (gameState.ammoInMag <= 0) {
+          reloadWeapon();
+        }
+        updateHudUI();
+      }
+
+      // Context interaction check (Shops, Car, Golden Jet)
+      let activeContextAction = null;
+
+      function updateContextPrompt() {
+        const promptEl = document.getElementById('contextPrompt');
+        const labelEl = document.getElementById('contextPromptLabel');
+        activeContextAction = null;
+
+        if (gameState.inVehicle) {
+          activeContextAction = { type: 'exitCar' };
+          labelEl.textContent = 'Fahrzeug verlassen';
+          promptEl.classList.remove('hidden');
+          return;
+        }
+
+        if (gameState.inJet) {
+          activeContextAction = { type: 'exitJet' };
+          labelEl.textContent = 'Golden Jet verlassen';
+          promptEl.classList.remove('hidden');
+          return;
+        }
+
+        // Check shops
+        for (const shop of shopMarkers) {
+          if (Math.hypot(playerState.x - shop.x, playerState.z - shop.z) < 6.5) {
+            activeContextAction = { type: 'shop', shopId: shop.id };
+            labelEl.textContent = `${shop.name} öffnen`;
+            promptEl.classList.remove('hidden');
+            return;
+          }
+        }
+
+        // Check Golden Jet proximity
+        if (Math.hypot(playerState.x - goldenJetState.x, playerState.z - goldenJetState.z) < 11) {
+          activeContextAction = { type: 'enterJet' };
+          labelEl.textContent = 'In Golden Jet einsteigen';
+          promptEl.classList.remove('hidden');
+          return;
+        }
+
+        // Check Sports Car proximity
+        if (Math.hypot(playerState.x - carState.x, playerState.z - carState.z) < 5.5) {
+          activeContextAction = { type: 'enterCar' };
+          labelEl.textContent = 'In Sportwagen einsteigen';
+          promptEl.classList.remove('hidden');
+          return;
+        }
+
+        promptEl.classList.add('hidden');
+      }
+
+      function triggerContextAction() {
+        if (!activeContextAction) return;
+        const act = activeContextAction;
+        if (act.type === 'shop') {
+          openShop(act.shopId);
+        } else if (act.type === 'enterCar') {
+          gameState.inVehicle = true;
+          gameState.inJet = false;
+          playerGroup.visible = false;
+          showToast('Du fährst den Sportwagen (W/S Gas/Bremse, A/D Lenken).', 'info');
+        } else if (act.type === 'exitCar') {
+          gameState.inVehicle = false;
+          playerGroup.visible = true;
+          playerState.x = carState.x + 2.6;
+          playerState.z = carState.z;
+          playerState.y = getTerrainHeight(playerState.x, playerState.z);
+          playerGroup.position.set(playerState.x, playerState.y, playerState.z);
+        } else if (act.type === 'enterJet') {
+          gameState.inJet = true;
+          gameState.inVehicle = false;
+          playerGroup.visible = false;
+          checkMissionProgress();
+          showToast('Golden Jet gestartet! W Schub, Space/Q Steigen, Shift/E Sinken.', 'success');
+        } else if (act.type === 'exitJet') {
+          gameState.inJet = false;
+          playerGroup.visible = true;
+          playerState.x = goldenJetState.x;
+          playerState.z = goldenJetState.z + 7;
+          playerState.y = Math.max(getTerrainHeight(playerState.x, playerState.z), goldenJetState.y);
+          playerGroup.position.set(playerState.x, playerState.y, playerState.z);
+        }
+        updateContextPrompt();
+      }
+
+      document.getElementById('btnContextInteract').addEventListener('click', triggerContextAction);
+      document.getElementById('touchActionBtn').addEventListener('click', triggerContextAction);
+      document.getElementById('touchReloadBtn').addEventListener('click', reloadWeapon);
+      document.getElementById('touchWheelBtn').addEventListener('click', openWeaponWheel);
+
+      // -----------------------------------------------------------
+      // 11. KEYBOARD, MOUSE, TOUCH JOYSTICK & GAMEPAD INPUTS
+      // -----------------------------------------------------------
+      const keysPressed = Object.create(null);
+
+      window.addEventListener('keydown', (e) => {
+        keysPressed[e.code] = true;
+
+        if (gameState.screen !== 'playing') return;
+
+        if (e.code === 'Tab') {
+          e.preventDefault();
+          const modal = document.getElementById('weaponWheelModal');
+          if (modal.classList.contains('hidden')) openWeaponWheel();
+          else closeModal('weaponWheelModal');
+        } else if (e.code === 'KeyE') {
+          triggerContextAction();
+        } else if (e.code === 'KeyR') {
+          reloadWeapon();
+        } else if (e.code === 'Space' && !gameState.inJet && !gameState.inVehicle && !gameState.flyMode) {
+          if (playerState.onGround) {
+            playerState.vy = 11.5;
+            playerState.onGround = false;
+          }
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        keysPressed[e.code] = false;
+      });
+
+      // Mouse look & shooting
+      let isDraggingLook = false;
+      let lastPointerX = 0;
+      let lastPointerY = 0;
+
+      canvas.addEventListener('mousedown', (e) => {
+        if (gameState.screen !== 'playing') return;
+        isDraggingLook = true;
+        lastPointerX = e.clientX;
+        lastPointerY = e.clientY;
+
+        if (e.button === 2) {
+          gameState.isAiming = true;
+          updateReticleUI();
+        } else if (e.button === 0) {
+          gameState.isFiring = true;
+          fireWeapon();
+        }
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (gameState.screen !== 'playing') return;
+        const sens = 0.0042 * (saveData.settings.sensitivity || 1.0);
+
+        if (document.pointerLockElement === canvas) {
+          gameState.yaw -= e.movementX * sens;
+          gameState.pitch = Math.max(-0.45, Math.min(1.05, gameState.pitch + e.movementY * sens));
+        } else if (isDraggingLook) {
+          const dx = e.clientX - lastPointerX;
+          const dy = e.clientY - lastPointerY;
+          lastPointerX = e.clientX;
+          lastPointerY = e.clientY;
+          gameState.yaw -= dx * sens;
+          gameState.pitch = Math.max(-0.45, Math.min(1.05, gameState.pitch + dy * sens));
+        }
+      });
+
+      window.addEventListener('mouseup', (e) => {
+        isDraggingLook = false;
+        if (e.button === 2) {
+          gameState.isAiming = false;
+          updateReticleUI();
+        } else if (e.button === 0) {
+          gameState.isFiring = false;
+        }
+      });
+
+      canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      function updateReticleUI() {
+        const outer = document.getElementById('reticleOuter');
+        if (gameState.isAiming) {
+          outer.className = 'reticle-ring w-5 h-5 rounded-full border-2 border-amber-400 flex items-center justify-center';
+          camera.fov = 42;
+        } else {
+          outer.className = 'reticle-ring w-7 h-7 rounded-full border border-white/55 flex items-center justify-center';
+          camera.fov = gameState.inJet ? 72 : 62;
+        }
+        camera.updateProjectionMatrix();
+      }
+
+      // Touch Joystick & Touch Action Buttons
+      const touchMoveVec = { x: 0, y: 0 };
+      const joystickZone = document.getElementById('joystickZone');
+      const joystickKnob = document.getElementById('joystickKnob');
+      let activeJoystickTouchId = null;
+      let activeLookTouchId = null;
+
+      joystickZone.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        activeJoystickTouchId = t.identifier;
+        handleJoystickMove(t.clientX, t.clientY);
+      }, { passive: false });
+
+      joystickZone.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.identifier === activeJoystickTouchId) {
+            handleJoystickMove(t.clientX, t.clientY);
+          }
+        }
+      }, { passive: false });
+
+      function resetJoystick(e) {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activeJoystickTouchId) {
+            activeJoystickTouchId = null;
+            touchMoveVec.x = 0;
+            touchMoveVec.y = 0;
+            joystickKnob.style.transform = 'translate(0px, 0px)';
+          }
+        }
+      }
+      joystickZone.addEventListener('touchend', resetJoystick);
+      joystickZone.addEventListener('touchcancel', resetJoystick);
+
+      function handleJoystickMove(clientX, clientY) {
+        const rect = joystickZone.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const maxR = rect.width * 0.36;
+        let dx = clientX - cx;
+        let dy = clientY - cy;
+        const dist = Math.hypot(dx, dy);
+        if (dist > maxR) {
+          dx = (dx / dist) * maxR;
+          dy = (dy / dist) * maxR;
+        }
+        joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+        touchMoveVec.x = dx / maxR;
+        touchMoveVec.y = dy / maxR;
+      }
+
+      // Touch camera drag on canvas
+      canvas.addEventListener('touchstart', (e) => {
+        if (gameState.screen !== 'playing') return;
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.clientX > window.innerWidth * 0.35 && activeLookTouchId === null) {
+            activeLookTouchId = t.identifier;
+            lastPointerX = t.clientX;
+            lastPointerY = t.clientY;
+          }
+        }
+      }, { passive: false });
+
+      canvas.addEventListener('touchmove', (e) => {
+        if (gameState.screen !== 'playing') return;
+        const sens = 0.0052 * (saveData.settings.sensitivity || 1.0);
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          const t = e.changedTouches[i];
+          if (t.identifier === activeLookTouchId) {
+            const dx = t.clientX - lastPointerX;
+            const dy = t.clientY - lastPointerY;
+            lastPointerX = t.clientX;
+            lastPointerY = t.clientY;
+            gameState.yaw -= dx * sens;
+            gameState.pitch = Math.max(-0.45, Math.min(1.05, gameState.pitch + dy * sens));
+          }
+        }
+      }, { passive: false });
+
+      canvas.addEventListener('touchend', (e) => {
+        for (let i = 0; i < e.changedTouches.length; i++) {
+          if (e.changedTouches[i].identifier === activeLookTouchId) {
+            activeLookTouchId = null;
+          }
+        }
+      });
+
+      const touchFireBtn = document.getElementById('touchFireBtn');
+      const touchAimBtn = document.getElementById('touchAimBtn');
+
+      touchFireBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        gameState.isFiring = true;
+        touchFireBtn.classList.add('active');
+        fireWeapon();
+      }, { passive: false });
+
+      touchFireBtn.addEventListener('touchend', () => {
+        gameState.isFiring = false;
+        touchFireBtn.classList.remove('active');
+      });
+
+      touchAimBtn.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        gameState.isAiming = !gameState.isAiming;
+        touchAimBtn.classList.toggle('active', gameState.isAiming);
+        updateReticleUI();
+      }, { passive: false });
+
+      // Gamepad polling helper
+      function pollGamepad(dt) {
+        const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+        const gp = pads && pads[0];
+        if (!gp) return { lx: 0, ly: 0, rx: 0, ry: 0, fire: false, aim: false };
+
+        const deadzone = 0.18;
+        const clean = (v) => (Math.abs(v) < deadzone ? 0 : v);
+        const lx = clean(gp.axes[0] || 0);
+        const ly = clean(gp.axes[1] || 0);
+        const rx = clean(gp.axes[2] || 0);
+        const ry = clean(gp.axes[3] || 0);
+
+        gameState.yaw -= rx * 2.2 * dt * (saveData.settings.sensitivity || 1.0);
+        gameState.pitch = Math.max(-0.45, Math.min(1.05, gameState.pitch + ry * 1.8 * dt * (saveData.settings.sensitivity || 1.0)));
+
+        const fire = !!(gp.buttons[7] && gp.buttons[7].pressed);
+        const aim = !!(gp.buttons[6] && gp.buttons[6].pressed);
+
+        if (gp.buttons[3] && gp.buttons[3].pressed && !pollGamepad._prevY) {
+          openWeaponWheel();
+        }
+        pollGamepad._prevY = !!(gp.buttons[3] && gp.buttons[3].pressed);
+
+        return { lx, ly, fire, aim };
+      }
+
+      // -----------------------------------------------------------
+      // 12. MINIMAP RADAR RENDERER
+      // -----------------------------------------------------------
+      const minimapCanvas = document.getElementById('minimapCanvas');
+      const minimapCtx = minimapCanvas.getContext('2d');
+
+      function drawMinimap() {
+        const w = minimapCanvas.width;
+        const h = minimapCanvas.height;
+        const cx = w / 2;
+        const cy = h / 2;
+        const scale = w / 760; // Shows ~760m radius around player
+
+        minimapCtx.clearRect(0, 0, w, h);
+        minimapCtx.fillStyle = '#0f172a';
+        minimapCtx.fillRect(0, 0, w, h);
+
+        // Alamo Sea on radar
+        const seaDx = (LANDMARKS.alamoSea.x - playerState.x) * scale;
+        const seaDz = (LANDMARKS.alamoSea.z - playerState.z) * scale;
+        minimapCtx.fillStyle = 'rgba(75, 93, 56, 0.75)';
+        minimapCtx.beginPath();
+        minimapCtx.arc(cx + seaDx, cy + seaDz, 195 * scale, 0, Math.PI * 2);
+        minimapCtx.fill();
+
+        // Ocean west edge
+        const oceanEdgeX = (-940 - playerState.x) * scale;
+        if (oceanEdgeX < w) {
+          minimapCtx.fillStyle = 'rgba(14, 116, 144, 0.55)';
+          minimapCtx.fillRect(0, 0, Math.max(0, cx + oceanEdgeX), h);
+        }
+
+        // Shops (Gold dots)
+        shopMarkers.forEach((s) => {
+          const sx = cx + (s.x - playerState.x) * scale;
+          const sy = cy + (s.z - playerState.z) * scale;
+          minimapCtx.fillStyle = '#fbbf24';
+          minimapCtx.beginPath();
+          minimapCtx.arc(sx, sy, 3.5, 0, Math.PI * 2);
+          minimapCtx.fill();
+        });
+
+        // Maze Tower & Golden Jet markers
+        const mtX = cx + (LANDMARKS.mazeTower.x - playerState.x) * scale;
+        const mtZ = cy + (LANDMARKS.mazeTower.z - playerState.z) * scale;
+        minimapCtx.fillStyle = '#f43f5e';
+        minimapCtx.fillRect(mtX - 3, mtZ - 3, 6, 6);
+
+        const jx = cx + (goldenJetState.x - playerState.x) * scale;
+        const jz = cy + (goldenJetState.z - playerState.z) * scale;
+        minimapCtx.fillStyle = '#38bdf8';
+        minimapCtx.beginPath();
+        minimapCtx.arc(jx, jz, 3.8, 0, Math.PI * 2);
+        minimapCtx.fill();
+
+        // Player arrow at center
+        minimapCtx.save();
+        minimapCtx.translate(cx, cy);
+        minimapCtx.rotate(-gameState.yaw);
+        minimapCtx.fillStyle = '#34d399';
+        minimapCtx.beginPath();
+        minimapCtx.moveTo(0, -6);
+        minimapCtx.lineTo(4.5, 5);
+        minimapCtx.lineTo(0, 2.5);
+        minimapCtx.lineTo(-4.5, 5);
+        minimapCtx.closePath();
+        minimapCtx.fill();
+        minimapCtx.restore();
+      }
+
+      // -----------------------------------------------------------
+      // 13. MAIN SIMULATION & RENDER LOOP
+      // -----------------------------------------------------------
+      let lastTime = performance.now();
+      let hudThrottleTimer = 0;
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+
+        const dt = Math.min(0.05, (now - lastTime) / 1000);
+        lastTime = now;
+
+        // Reload & fire timers
+        if (gameState.fireCooldown > 0) gameState.fireCooldown -= dt;
+        if (gameState.reloading) {
+          gameState.reloadTimer -= dt;
+          if (gameState.reloadTimer <= 0) {
+            gameState.reloading = false;
+            const w = WEAPONS[gameState.currentWeaponIdx] || WEAPONS[0];
+            gameState.ammoInMag = w.magSize;
+            updateHudUI();
+          }
+        }
+
+        if (gameState.isFiring && gameState.screen === 'playing') {
+          fireWeapon();
+        }
+
+        // Wanted level decay
+        if (gameState.wantedLevel > 0) {
+          gameState.wantedDecayTimer -= dt;
+          if (gameState.wantedDecayTimer <= 0) {
+            gameState.wantedLevel -= 1;
+            gameState.wantedDecayTimer = 14;
+            updateHudUI();
+          }
+        }
+
+        // Storm lightning effect
+        if (gameState.weather === 'storm') {
+          gameState.lightningTimer -= dt;
+          if (gameState.lightningTimer <= 0) {
+            gameState.lightningTimer = 3.5 + Math.random() * 5.5;
+            gameState.lightningFlash = 1.0;
+            sfx.playThunder();
+          }
+        }
+        if (gameState.lightningFlash > 0) {
+          gameState.lightningFlash = Math.max(0, gameState.lightningFlash - dt * 3.8);
+          lightningLight.intensity = gameState.lightningFlash * 8;
+        } else {
+          lightningLight.intensity = 0;
+        }
+
+        // Movement inputs (Keyboard + Touch + Gamepad)
+        const gp = pollGamepad(dt);
+        if (gp.fire && gameState.screen === 'playing') fireWeapon();
+        if (gp.aim !== gameState.isAiming) {
+          gameState.isAiming = gp.aim;
+          updateReticleUI();
+        }
+
+        let moveForward = touchMoveVec.y - gp.ly;
+        let moveRight = touchMoveVec.x + gp.lx;
+        if (keysPressed['KeyW'] || keysPressed['ArrowUp']) moveForward -= 1;
+        if (keysPressed['KeyS'] || keysPressed['ArrowDown']) moveForward += 1;
+        if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) moveRight -= 1;
+        if (keysPressed['KeyD'] || keysPressed['ArrowRight']) moveRight += 1;
+
+        // Clamp combined input magnitude
+        const mag = Math.hypot(moveForward, moveRight);
+        if (mag > 1) {
+          moveForward /= mag;
+          moveRight /= mag;
+        }
+
+        if (gameState.screen === 'playing') {
+          if (gameState.inJet) {
+            // Golden Jet flight physics
+            const throttle = -moveForward;
+            const turn = -moveRight;
+            goldenJetState.speed += throttle * 55 * dt;
+            goldenJetState.speed = Math.max(-10, Math.min(95, goldenJetState.speed)) * (1 - 0.35 * dt);
+            goldenJetState.yaw += turn * 1.35 * dt;
+
+            let climb = 0;
+            if (keysPressed['Space'] || keysPressed['KeyQ']) climb += 1;
+            if (keysPressed['ShiftLeft'] || keysPressed['ShiftRight'] || keysPressed['KeyE']) climb -= 1;
+            goldenJetState.verticalSpeed += climb * 26 * dt;
+            goldenJetState.verticalSpeed *= 0.92;
+
+            const vx = Math.cos(goldenJetState.yaw) * goldenJetState.speed;
+            const vz = -Math.sin(goldenJetState.yaw) * goldenJetState.speed;
+            goldenJetState.x = Math.max(-HALF_WORLD + 40, Math.min(HALF_WORLD - 40, goldenJetState.x + vx * dt));
+            goldenJetState.z = Math.max(-HALF_WORLD + 40, Math.min(HALF_WORLD - 40, goldenJetState.z + vz * dt));
+            goldenJetState.y += goldenJetState.verticalSpeed * dt;
+
+            const groundAtJet = getTerrainHeight(goldenJetState.x, goldenJetState.z) + 1.8;
+            if (goldenJetState.y < groundAtJet) {
+              goldenJetState.y = groundAtJet;
+              goldenJetState.verticalSpeed = Math.max(0, goldenJetState.verticalSpeed);
+            }
+
+            goldenJetMesh.position.set(goldenJetState.x, goldenJetState.y, goldenJetState.z);
+            goldenJetMesh.rotation.set(goldenJetState.verticalSpeed * 0.015, goldenJetState.yaw, -turn * 0.32);
+
+            playerState.x = goldenJetState.x;
+            playerState.y = goldenJetState.y;
+            playerState.z = goldenJetState.z;
+            checkMissionProgress();
+          } else if (gameState.inVehicle) {
+            // Sports Car driving physics
+            const throttle = -moveForward;
+            const steer = -moveRight;
+            carState.speed += throttle * 38 * dt;
+            carState.speed = Math.max(-16, Math.min(54, carState.speed)) * (1 - 1.4 * dt);
+            if (Math.abs(carState.speed) > 0.4) {
+              const dirSign = carState.speed >= 0 ? 1 : -1;
+              carState.yaw += steer * 2.1 * dt * dirSign;
+            }
+
+            const nextX = Math.max(-HALF_WORLD + 30, Math.min(HALF_WORLD - 30, carState.x + Math.sin(carState.yaw) * carState.speed * dt));
+            const nextZ = Math.max(-HALF_WORLD + 30, Math.min(HALF_WORLD - 30, carState.z + Math.cos(carState.yaw) * carState.speed * dt));
+
+            carState.x = nextX;
+            carState.z = nextZ;
+            carState.y = getTerrainHeight(carState.x, carState.z);
+            carGroup.position.set(carState.x, carState.y, carState.z);
+            carGroup.rotation.y = carState.yaw;
+
+            playerState.x = carState.x;
+            playerState.y = carState.y + 0.8;
+            playerState.z = carState.z;
+          } else {
+            // On-foot movement (with optional Admin Fly Mode)
+            const speed = (keysPressed['ShiftLeft'] || keysPressed['ShiftRight'] ? 15.5 : 9.2);
+            const forwardVec = new THREE.Vector3(-Math.sin(gameState.yaw), 0, -Math.cos(gameState.yaw));
+            const rightVec = new THREE.Vector3(Math.cos(gameState.yaw), 0, -Math.sin(gameState.yaw));
+
+            const wishMove = new THREE.Vector3()
+              .addScaledVector(forwardVec, -moveForward)
+              .addScaledVector(rightVec, moveRight);
+
+            if (wishMove.lengthSq() > 0.001) {
+              wishMove.normalize();
+              const targetX = Math.max(-HALF_WORLD + 25, Math.min(HALF_WORLD - 25, playerState.x + wishMove.x * speed * dt));
+              const targetZ = Math.max(-HALF_WORLD + 25, Math.min(HALF_WORLD - 25, playerState.z + wishMove.z * speed * dt));
+
+              // Simple circle building/prop collision check
+              let blocked = false;
+              for (let i = 0; i < colliders.length; i++) {
+                const c = colliders[i];
+                if (Math.hypot(targetX - c.x, targetZ - c.z) < c.radius + 0.75) {
+                  blocked = true;
+                  break;
+                }
+              }
+
+              if (!blocked) {
+                playerState.x = targetX;
+                playerState.z = targetZ;
+              }
+
+              playerGroup.rotation.y = Math.atan2(wishMove.x, wishMove.z);
+              playerState.walkPhase += dt * speed * 1.15;
+              playerGroup.userData.leftLeg.rotation.x = Math.sin(playerState.walkPhase) * 0.65;
+              playerGroup.userData.rightLeg.rotation.x = -Math.sin(playerState.walkPhase) * 0.65;
+            } else {
+              playerGroup.userData.leftLeg.rotation.x *= 0.82;
+              playerGroup.userData.rightLeg.rotation.x *= 0.82;
+            }
+
+            if (gameState.flyMode) {
+              if (keysPressed['Space']) playerState.y += 18 * dt;
+              if (keysPressed['KeyC']) playerState.y -= 18 * dt;
+              playerState.y = Math.max(getTerrainHeight(playerState.x, playerState.z), playerState.y);
+            } else {
+              const groundY = getTerrainHeight(playerState.x, playerState.z);
+              playerState.vy -= 28 * dt;
+              playerState.y += playerState.vy * dt;
+              if (playerState.y <= groundY) {
+                playerState.y = groundY;
+                playerState.vy = 0;
+                playerState.onGround = true;
+              }
+            }
+
+            playerGroup.position.set(playerState.x, playerState.y, playerState.z);
+            checkMissionProgress();
+          }
+
+          updateContextPrompt();
+        }
+
+        // Animate remote online players
+        remotePlayers.forEach((rp) => {
+          rp.phase += dt * 0.65;
+          const rx = rp.centerX + Math.cos(rp.phase) * rp.radius;
+          const rz = rp.centerZ + Math.sin(rp.phase) * rp.radius;
+          rp.group.position.set(rx, getTerrainHeight(rx, rz), rz);
+          rp.group.rotation.y = -rp.phase;
+        });
+
+        // Animate & respawn NPCs
+        npcs.forEach((npc) => {
+          if (!npc.alive) {
+            npc.respawnTimer -= dt;
+            if (npc.respawnTimer <= 0) {
+              npc.alive = true;
+              npc.hp = 75;
+              npc.group.visible = true;
+            }
+            return;
+          }
+          npc.phase += dt * 0.8;
+          const nx = npc.homeX + Math.sin(npc.phase) * 5;
+          const nz = npc.homeZ + Math.cos(npc.phase) * 5;
+          npc.group.position.set(nx, getTerrainHeight(nx, nz), nz);
+          npc.group.rotation.y = Math.atan2(Math.cos(npc.phase), -Math.sin(npc.phase));
+        });
+
+        // Fade tracers
+        for (let i = tracers.length - 1; i >= 0; i--) {
+          const tr = tracers[i];
+          tr.life -= dt;
+          if (tr.life <= 0) {
+            worldGroup.remove(tr.line);
+            tr.line.geometry.dispose();
+            tr.line.material.dispose();
+            tracers.splice(i, 1);
+          }
+        }
+
+        // Third-person camera follow & shadow frustum follow
+        const camDist = gameState.inJet ? 22 : gameState.isAiming ? 4.4 : gameState.inVehicle ? 9.5 : gameState.camDist;
+        const targetPos = new THREE.Vector3(playerState.x, playerState.y + (gameState.inJet ? 3.5 : 1.7), playerState.z);
+
+        const camOffset = new THREE.Vector3(
+          Math.sin(gameState.yaw) * Math.cos(gameState.pitch) * camDist,
+          Math.max(1.2, Math.sin(gameState.pitch) * camDist),
+          Math.cos(gameState.yaw) * Math.cos(gameState.pitch) * camDist
+        );
+
+        const desiredCamPos = targetPos.clone().add(camOffset);
+        const minCamGround = getTerrainHeight(desiredCamPos.x, desiredCamPos.z) + 1.2;
+        if (desiredCamPos.y < minCamGround) desiredCamPos.y = minCamGround;
+
+        camera.position.lerp(desiredCamPos, Math.min(1, dt * 12));
+        camera.lookAt(targetPos);
+
+        // Keep directional shadow frustum centered around player for crisp nearby shadows
+        dirLight.target.position.set(playerState.x, playerState.y, playerState.z);
+        dirLight.position.set(playerState.x + 140, playerState.y + 220, playerState.z + 120);
+        dirLight.target.updateMatrixWorld();
+
+        // Throttled HUD & Minimap updates (~15Hz)
+        hudThrottleTimer += dt;
+        if (hudThrottleTimer >= 0.065 && gameState.screen === 'playing') {
+          hudThrottleTimer = 0;
+          document.getElementById('hudDistrict').textContent = detectDistrict(playerState.x, playerState.z);
+          drawMinimap();
+        }
+
+        renderer.render(scene, camera);
+      }
+
+      window.addEventListener('resize', () => {
+        applyAdaptiveDPR();
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        refreshTouchLayerVisibility();
+      });
+
+      updateHudUI();
+      requestAnimationFrame(animate);
+    })();
+  </script>
+</body>
+</html>
